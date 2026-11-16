@@ -20,7 +20,7 @@ Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The workspace includes publ
 - **Website** · Captures the first desktop and mobile viewports and checks horizontal overflow, viewport settings, page titles, image descriptions, and form labels.
 - **Fix previews** · Provides a downloadable patch when a broken README link has a unique replacement. Re-renders compatible website changes and reruns the check against the preview. Preview changes stay inside DeSpecto.
 
-Jobs and evidence are held in memory. The server keeps up to 20 reports, and restarting it clears them.
+Completed reports, fix previews, and screenshots are saved in the ignored `.despecto/` directory and survive server restarts. The server keeps up to 20 reports. Set `REPORT_DIR` to use a different local directory.
 
 ## AI review and narration
 

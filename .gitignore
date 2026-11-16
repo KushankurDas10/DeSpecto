@@ -1,4 +1,5 @@
 node_modules/
+.despecto/
 .env
 .env.*
 *.log

@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { createQueue } from "./jobs.js";
+import { openReportStore } from "./reports.js";
 import { InputError } from "../../shared/target.js";
 import { auditRepository } from "../../workers/repo-audit/index.js";
 import { auditWebsite } from "../../workers/site-audit/index.js";
@@ -20,10 +21,15 @@ const staticFiles = new Map([
     [`/${name}`, [name, "text/javascript; charset=utf-8"]]),
 ]);
 
-export function createApp(queue = createQueue({
-  auditors: { repo: (target, progress) => auditRepository(target, progress), website: auditWebsite },
-  fixers: { repo: previewRepositoryFix, website: previewWebsiteFix },
-})) {
+function appQueue(store) {
+  return createQueue({
+    auditors: { repo: (target, progress) => auditRepository(target, progress), website: auditWebsite },
+    fixers: { repo: previewRepositoryFix, website: previewWebsiteFix },
+    store,
+  });
+}
+
+export function createApp(queue = appQueue()) {
   const exports = createExports();
   return createServer(async (request, response) => {
     response.setHeader("X-Content-Type-Options", "nosniff");
@@ -147,7 +153,12 @@ export function send(response, status, data, type = "application/json; charset=u
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = Number(process.env.PORT ?? 3000);
-  createApp().listen(port, process.env.HOST ?? "127.0.0.1", () => {
-    console.log(`DeSpecto is listening on port ${port}.`);
+  const store = await openReportStore(process.env.REPORT_DIR ?? ".despecto").catch((error) => {
+    console.warn(`Reports will stay in memory. ${error.message}`);
+    return undefined;
+  });
+  const server = createApp(appQueue(store));
+  server.listen(port, process.env.HOST ?? "127.0.0.1", () => {
+    console.log(`DeSpecto is listening on port ${server.address().port}.`);
   });
 }
