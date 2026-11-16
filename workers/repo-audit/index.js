@@ -40,7 +40,7 @@ export function checkRepository(index) {
       evidence: { file, lines: [line, line], excerpt: linesOf(files.get(file))[line - 1] },
     });
     findings.push(item);
-    if (repair) fixes.set(item.id, repair);
+    if (repair) fixes.set(item.id, { index, repair });
   }
 
   let scripts;

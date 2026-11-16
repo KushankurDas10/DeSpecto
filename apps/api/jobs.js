@@ -9,6 +9,7 @@ export function createQueue({
   const records = new Map();
   const pending = [];
   let running = 0;
+  let activeFixes = 0;
 
   function submit(input) {
     const target = parseTarget(input);
@@ -57,7 +58,10 @@ export function createQueue({
     try {
       const { findings, fixes, ...summary } = await auditors[job.target.source](job.target, context.progress, context);
       record.fixes = fixes ?? new Map();
-      job.result = { ...summary, findings };
+      job.result = {
+        ...summary,
+        findings: findings.map((item) => ({ ...item, fixAvailable: Boolean(fixers[item.source] && record.fixes.has(item.id)) })),
+      };
       Object.assign(job, { status: "complete", progress: 100, stage: "Audit complete" });
     } catch (error) {
       if (!(error instanceof InputError)) console.error(error);
@@ -79,9 +83,14 @@ export function createQueue({
     const recipe = record.fixes.get(findingId);
     const fixer = fixers[item.source];
     if (!recipe || !fixer) throw new InputError("A targeted fix is unavailable for this finding.");
+    if (activeFixes >= 2) throw new InputError("The fix workers are busy. Try again in a moment.");
+    activeFixes += 1;
     const request = Promise.resolve().then(() => fixer(record.job.target, item, recipe, record.context))
       .then((result) => (item.fix = result))
-      .finally(() => record.pendingFixes.delete(findingId));
+      .finally(() => {
+        activeFixes -= 1;
+        record.pendingFixes.delete(findingId);
+      });
     record.pendingFixes.set(findingId, request);
     return request;
   }
