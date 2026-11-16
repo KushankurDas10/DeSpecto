@@ -1,5 +1,5 @@
 import { posix } from "node:path";
-import { askModel } from "../../models/client.js";
+import { askModel, modelConfigured } from "../../models/client.js";
 import { finding } from "../../shared/finding.js";
 import { readRepository, rootReadme } from "./git.js";
 
@@ -12,14 +12,18 @@ export async function auditRepository(target, progress, read = readRepository) {
   const { findings, fixes } = checkRepository(index);
   const notes = [`Inspected ${index.files.size} text files at ${index.revision.slice(0, 8)} using static analysis.`];
 
-  if (findings.length < maxFindings && index.files.size) {
+  if (modelConfigured() && index.files.size) {
+    progress(80, "Reviewing source excerpts with AI");
     try {
-      const reviewed = await reviewSource(index, maxFindings - findings.length);
+      const reviewed = await reviewSource(index, Math.max(3, maxFindings - findings.length));
+      let added = 0;
       for (const item of reviewed) {
         if (findings.some((other) => other.evidence.file === item.evidence.file
           && other.evidence.lines[0] === item.evidence.lines[0])) continue;
         findings.push(item);
+        added += 1;
       }
+      notes.push(`AI source review completed and added ${added} findings.`);
     } catch {
       notes.push("AI review was unavailable. Static checks completed.");
     }

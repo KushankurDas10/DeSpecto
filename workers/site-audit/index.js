@@ -1,49 +1,61 @@
-import { askModel } from "../../models/client.js";
+import { askModel, modelConfigured } from "../../models/client.js";
 import { finding } from "../../shared/finding.js";
 import { capturePage, withBrowser, withPage } from "./browser.js";
 import { inspectPage } from "./inspect.js";
 
 export async function auditWebsite(target, progress, context) {
-  return withBrowser(target, async (browser) => {
-    const screenshots = [];
-    const findings = [];
-    const fixes = new Map();
-    const notes = [];
-    const seen = new Set();
+  const captures = await withBrowser(target, async (browser) => {
+    const images = [];
     for (const [view, percent] of [["desktop", 21], ["mobile", 56]]) {
       progress(percent, `Inspecting the ${view} layout`);
-      await withPage(browser, target.url, view, async (page) => {
+      const image = await withPage(browser, target.url, view, async (page) => {
         const scan = await inspectPage(page, view);
         const bytes = await capturePage(page);
         const screenshot = context.asset(`${view}.png`, bytes);
-        screenshots.push({ view, url: screenshot, width: scan.width, height: scan.height });
-        for (const item of scan.issues) {
-          const key = `${item.rule === "overflow" ? view : ""}:${item.rule}:${item.selector}`;
-          if (seen.has(key)) continue;
-          seen.add(key);
-          const value = finding({
-            source: "website", type: item.type, severity: item.severity, title: item.title,
-            explanation: item.explanation, evidence: {
-              screenshot, view, width: scan.width, height: scan.height, box: item.box, selector: item.selector,
-            },
-          });
-          findings.push(value);
-          if (item.repair) fixes.set(value.id, { ...item.repair, view, rule: item.rule, selector: item.selector });
-        }
-
-        if (process.env.AI_VISION_MODEL) {
-          try {
-            findings.push(...await reviewImage(bytes, scan, screenshot, view));
-          } catch {
-            if (!notes.length) notes.push("AI visual review was unavailable. Browser checks completed.");
-          }
-        }
+        return { view, scan, bytes, screenshot };
       });
+      images.push(image);
     }
-    progress(93, "Preparing screenshot evidence");
-    notes.push("Checked the first viewport on desktop and mobile.");
-    return { findings, fixes, screenshots, notes };
+    return images;
   });
+
+  const screenshots = [];
+  const findings = [];
+  const fixes = new Map();
+  const notes = ["Checked the first viewport on desktop and mobile."];
+  const seen = new Set();
+  for (const { view, scan, screenshot } of captures) {
+    screenshots.push({ view, url: screenshot, width: scan.width, height: scan.height });
+    for (const item of scan.issues) {
+      const key = `${item.rule === "overflow" ? view : ""}:${item.rule}:${item.selector}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const value = finding({
+        source: "website", type: item.type, severity: item.severity, title: item.title,
+        explanation: item.explanation, evidence: {
+          screenshot, view, width: scan.width, height: scan.height, box: item.box, selector: item.selector,
+        },
+      });
+      findings.push(value);
+      if (item.repair) fixes.set(value.id, { ...item.repair, view, rule: item.rule, selector: item.selector });
+    }
+  }
+
+  if (modelConfigured(true)) {
+    progress(82, "Reviewing screenshots with AI");
+    const reviews = await Promise.allSettled(captures.map(({ bytes, scan, screenshot, view }) =>
+      reviewImage(bytes, scan, screenshot, view)));
+    let reviewed = 0;
+    for (const result of reviews) {
+      if (result.status === "fulfilled") {
+        reviewed += 1;
+        findings.push(...result.value);
+      }
+    }
+    notes.push(`AI visual review completed for ${reviewed} of ${captures.length} viewports.`);
+  }
+  progress(93, "Preparing screenshot evidence");
+  return { findings, fixes, screenshots, notes };
 }
 
 async function reviewImage(bytes, scan, screenshot, view) {

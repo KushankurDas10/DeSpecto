@@ -22,19 +22,21 @@ Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The workspace includes publ
 
 Jobs and evidence are held in memory. The server keeps up to 20 reports, and restarting it clears them.
 
-## Optional model and voice
+## AI review and narration
 
-Set the variables in a local `.env` file or in the environment. The core checks work without external API credentials.
+Create a local `.env` at the repository root. Get an [OpenRouter API key](https://openrouter.ai/settings/keys) with credit for [Qwen3.6](https://openrouter.ai/qwen/qwen3.6-35b-a3b). Create an [Azure Speech resource](https://learn.microsoft.com/azure/ai-services/speech-service/get-started-text-to-speech?pivots=programming-language-rest) and copy either key and the region from its **Keys and Endpoint** page.
 
-| Variable | Purpose |
-| --- | --- |
-| `AI_BASE_URL` | OpenAI-compatible API base with a `/chat/completions` endpoint, typically ending in `/v1` |
-| `AI_MODEL` | Text model for source review and translation of additional findings |
-| `AI_VISION_MODEL` | Model that accepts screenshot input for visual review |
-| `AI_API_KEY` | API key for the model provider |
-| `TTS_BASE_URL` and `TTS_MODEL` | Optional speech provider with an `/audio/speech` endpoint that returns MP3 |
-| `TTS_API_KEY` | API key for the speech provider |
-| `TTS_VOICE` | Default provider voice, falling back to `alloy` |
-| `TTS_VOICE_EN`, `TTS_VOICE_HI`, `TTS_VOICE_TE` | Optional per-language voices |
+```dotenv
+AI_BASE_URL=https://openrouter.ai/api/v1
+AI_API_KEY=your_openrouter_key
+AI_MODEL=qwen/qwen3.6-35b-a3b
+AI_VISION_MODEL=qwen/qwen3.6-35b-a3b
+AZURE_SPEECH_KEY=your_azure_speech_key
+AZURE_SPEECH_REGION=your_speech_resource_region
+```
 
-Built-in findings have local captions in all three languages. If a speech provider is unavailable, the walkthrough uses an installed browser voice when possible and displays captions in every scene.
+Run `npm run check:providers` to verify text review, image review, and audio in English, Hindi, and Telugu. This command makes short billable requests to the configured providers. Restart the app after changing `.env`.
+
+The text and vision models can use another compatible chat completions API through `AI_BASE_URL`. To use another speech provider with an OpenAI-compatible MP3 endpoint, set `TTS_BASE_URL`, `TTS_MODEL`, and `TTS_API_KEY` in place of the Azure variables. Set `TTS_VOICE_EN`, `TTS_VOICE_HI`, or `TTS_VOICE_TE` to override the voices for either provider.
+
+Built-in checks and captions work without credentials. The browser can speak captions when it has an installed voice for the selected language.

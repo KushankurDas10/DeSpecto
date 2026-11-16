@@ -9,7 +9,7 @@ import { previewRepositoryFix } from "../../workers/fix/repository.js";
 import { previewWebsiteFix } from "../../workers/fix/website.js";
 import { languages } from "../../shared/finding.js";
 import { walkthroughFor } from "../../video/walkthrough.js";
-import { synthesize } from "../../video/speech.js";
+import { narrationFor } from "../../video/speech.js";
 
 const web = new URL("../web/", import.meta.url);
 const staticFiles = new Map([
@@ -23,7 +23,6 @@ export function createApp(queue = createQueue({
   auditors: { repo: (target, progress) => auditRepository(target, progress), website: auditWebsite },
   fixers: { repo: previewRepositoryFix, website: previewWebsiteFix },
 })) {
-  let speechRequests = 0;
   return createServer(async (request, response) => {
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("Referrer-Policy", "no-referrer");
@@ -61,15 +60,9 @@ export function createApp(queue = createQueue({
           if (action === "walkthrough") return send(response, 200, walkthrough);
           const scene = walkthrough.scenes[Number(audio)];
           if (!scene || !walkthrough.speechAvailable) return send(response, 404, { error: "Voice unavailable." });
-          if (speechRequests >= 2) return send(response, 503, { error: "Voice is busy." });
-          speechRequests += 1;
-          try {
-            const speech = await synthesize(scene).catch(() => null);
-            if (speech) return send(response, 200, speech, "audio/mpeg");
-            return send(response, 502, { error: "Voice unavailable." });
-          } finally {
-            speechRequests -= 1;
-          }
+          const speech = await narrationFor(scene).catch(() => null);
+          if (speech) return send(response, 200, speech, "audio/mpeg");
+          return send(response, 502, { error: "Voice unavailable." });
         }
       }
       if (request.method === "POST" && audit) {

@@ -1,6 +1,7 @@
 import { askModel } from "../models/client.js";
 import { languages } from "../shared/finding.js";
 import { builtInTranslation, locales } from "./locales.js";
+import { speechConfigured } from "./speech.js";
 
 const cache = new WeakMap();
 
@@ -53,7 +54,7 @@ async function compose(job, language) {
 
   return {
     scenes: [opening, ...scenes],
-    speechAvailable: Boolean(process.env.TTS_BASE_URL && process.env.TTS_MODEL),
+    speechAvailable: speechConfigured(),
   };
 }
 
