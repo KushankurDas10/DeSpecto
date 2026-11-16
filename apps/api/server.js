@@ -10,12 +10,13 @@ import { previewWebsiteFix } from "../../workers/fix/website.js";
 import { languages } from "../../shared/finding.js";
 import { walkthroughFor } from "../../video/walkthrough.js";
 import { narrationFor } from "../../video/speech.js";
+import { createExports, exportAvailable } from "../../video/export.js";
 
 const web = new URL("../web/", import.meta.url);
 const staticFiles = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
   ["/style.css", ["style.css", "text/css; charset=utf-8"]],
-  ...["app.js", "dom.js", "report.js", "walkthrough.js"].map((name) =>
+  ...["app.js", "dom.js", "report.js", "walkthrough.js", "export.js"].map((name) =>
     [`/${name}`, [name, "text/javascript; charset=utf-8"]]),
 ]);
 
@@ -23,6 +24,7 @@ export function createApp(queue = createQueue({
   auditors: { repo: (target, progress) => auditRepository(target, progress), website: auditWebsite },
   fixers: { repo: previewRepositoryFix, website: previewWebsiteFix },
 })) {
+  const exports = createExports();
   return createServer(async (request, response) => {
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("Referrer-Policy", "no-referrer");
@@ -45,6 +47,25 @@ export function createApp(queue = createQueue({
         const input = await readBody(request);
         return send(response, 202, queue.submit(input?.url));
       }
+      if (audit && /^export(?:\/file)?$/.test(audit[2])) {
+        const [, id, action] = audit;
+        const job = queue.get(id);
+        if (job?.status !== "complete") return send(response, 404, { error: "Audit unavailable." });
+        const lang = readLanguage(url);
+        const entry = exports.get(job, lang);
+        if (request.method === "GET" && action === "export") {
+          return send(response, 200, entry?.state ?? { status: "idle" });
+        }
+        if (request.method === "GET" && action === "export/file") {
+          if (!entry?.bytes) return send(response, 404, { error: "Export unavailable. Create a new video." });
+          response.setHeader("Content-Disposition", `attachment; filename=despecto-${lang}.mp4`);
+          response.setHeader("Content-Length", entry.bytes.byteLength);
+          return send(response, 200, entry.bytes, "video/mp4");
+        }
+        if (request.method === "POST" && action === "export") {
+          return send(response, 202, await exports.start(job, lang, (path) => queue.asset(id, path.split("/").at(-1))));
+        }
+      }
       if (request.method === "GET" && audit) {
         const [, id, action] = audit;
         const job = queue.get(id);
@@ -54,10 +75,11 @@ export function createApp(queue = createQueue({
         if (bytes) return send(response, 200, bytes, "image/png");
         const audio = /^audio\/(\d{1,2})$/.exec(action)?.[1];
         if (job?.status === "complete" && (action === "walkthrough" || audio !== undefined)) {
-          const lang = url.searchParams.get("lang") ?? "en";
-          if (!Object.hasOwn(languages, lang)) throw new InputError("Select English, Hindi, or Telugu.");
+          const lang = readLanguage(url);
           const walkthrough = await walkthroughFor(job, lang);
-          if (action === "walkthrough") return send(response, 200, walkthrough);
+          if (action === "walkthrough") {
+            return send(response, 200, { ...walkthrough, exportAvailable: await exportAvailable() });
+          }
           const scene = walkthrough.scenes[Number(audio)];
           if (!scene || !walkthrough.speechAvailable) return send(response, 404, { error: "Voice unavailable." });
           const speech = await narrationFor(scene).catch(() => null);
@@ -81,6 +103,12 @@ export function createApp(queue = createQueue({
       return send(response, 500, { error: "Something went wrong. Please try again." });
     }
   });
+}
+
+function readLanguage(url) {
+  const lang = url.searchParams.get("lang") ?? "en";
+  if (!Object.hasOwn(languages, lang)) throw new InputError("Select English, Hindi, or Telugu.");
+  return lang;
 }
 
 async function readBody(request) {

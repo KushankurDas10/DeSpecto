@@ -1,4 +1,5 @@
 import { button, element, request, showEvidence } from "./dom.js";
+import { showExport } from "./export.js";
 
 const voices = { en: "en-US", hi: "hi-IN", te: "te-IN" };
 let selectedLanguage = "en";
@@ -29,8 +30,10 @@ export function createWalkthrough(container, job) {
   const status = element("p", "voice-note");
   status.setAttribute("role", "status");
   status.hidden = true;
+  const exports = element("div", "export-controls");
+  exports.hidden = true;
   controls.append(play, previous, next, progress, count);
-  player.append(settings, stage, controls, status);
+  player.append(settings, stage, controls, status, exports);
   container.replaceChildren(player);
 
   let controller;
@@ -58,6 +61,7 @@ export function createWalkthrough(container, job) {
     stop();
     script = undefined;
     setStatus("");
+    exports.hidden = true;
     setSceneControls();
     stage.replaceChildren(element("p", "", "Preparing walkthrough…"));
     try {
@@ -65,6 +69,7 @@ export function createWalkthrough(container, job) {
       if (signal.aborted) return;
       script = result;
       move(0, false);
+      if (result.exportAvailable) showExport(exports, job, language.value, signal);
     } catch (error) {
       if (!signal.aborted) {
         stage.replaceChildren(element("p", "", error.message), button("Retry", "button", load));

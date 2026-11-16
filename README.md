@@ -40,3 +40,7 @@ Run `npm run check:providers` to verify text review, image review, and audio in 
 The text and vision models can use another compatible chat completions API through `AI_BASE_URL`. To use another speech provider with an OpenAI-compatible MP3 endpoint, set `TTS_BASE_URL`, `TTS_MODEL`, and `TTS_API_KEY` in place of the Azure variables. Set `TTS_VOICE_EN`, `TTS_VOICE_HI`, or `TTS_VOICE_TE` to override the voices for either provider.
 
 Built-in checks and captions work without credentials. The browser can speak captions when it has an installed voice for the selected language.
+
+## Download a walkthrough
+
+Install FFmpeg with H.264 support and make it available on `PATH`, or set `FFMPEG_PATH` to its executable. Restart DeSpecto, open an audit's **Walkthrough** tab, select the language, and choose **Export MP4**. Download the finished video from the same tab. Export burns in the captions and evidence highlights and uses provider audio to time available narration. The server retains the most recent export.
