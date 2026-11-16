@@ -17,6 +17,7 @@ export async function withBrowser(target, inspect) {
 
   const proxy = await startAuditProxy();
   let browser;
+  let deadline;
   try {
     try {
       browser = await chromium.launch({
@@ -36,8 +37,12 @@ export async function withBrowser(target, inspect) {
       }
       throw error;
     }
-    return await inspect(browser);
+    const timeout = new Promise((_, reject) => {
+      deadline = setTimeout(() => reject(new InputError("The website audit browser timed out.")), 95000);
+    });
+    return await Promise.race([inspect(browser), timeout]);
   } finally {
+    clearTimeout(deadline);
     try {
       await browser?.close();
     } finally {

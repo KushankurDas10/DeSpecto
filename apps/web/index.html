@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f5f6f3">
+    <title>DeSpecto — Audit workspace</title>
+    <link rel="stylesheet" href="/style.css">
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <a class="brand" href="/" aria-label="DeSpecto home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>DeSpecto</span>
+        </a>
+        <a class="source-link" href="https://github.com/KushankurDas10/DeSpecto" target="_blank" rel="noopener noreferrer">
+          GitHub <span aria-hidden="true">↗</span>
+        </a>
+      </div>
+    </header>
+    <main class="workspace">
+      <section id="home">
+        <div class="hero">
+          <div class="hero-art" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          <div class="hero-content">
+            <span class="kicker"><span class="signal" aria-hidden="true"></span> PROJECT AUDIT</span>
+            <h1>Audit a repo<br>or website<span>.</span></h1>
+            <p>Check README claims against source code or inspect a website across screen sizes. Every finding points to the evidence.</p>
+            <form id="audit-form">
+              <label class="sr-only" for="target">Public GitHub or website URL</label>
+              <div class="target-control">
+                <input id="target" name="url" type="text" inputmode="url" maxlength="2048" placeholder="Paste a public GitHub or website URL" required autocomplete="url" spellcheck="false">
+                <button class="button primary" type="submit">Run audit <span aria-hidden="true">↗</span></button>
+              </div>
+              <p class="form-error" id="form-error" role="alert" hidden></p>
+            </form>
+            <div class="examples">
+              <span>Try an example</span>
+              <button class="example" type="button" data-example="https://github.com/octocat/Hello-World">GitHub repo</button>
+              <button class="example" type="button" data-example="https://info.cern.ch/">Website</button>
+            </div>
+          </div>
+        </div>
+        <section class="history" aria-labelledby="history-title">
+          <div class="section-heading">
+            <h2 id="history-title">Recent audits</h2>
+            <span>THIS BROWSER</span>
+          </div>
+          <div id="history-list" class="history-list"></div>
+        </section>
+      </section>
+      <section id="active" aria-live="polite" hidden></section>
+      <section id="report" hidden></section>
+    </main>
+  </body>
+</html>

@@ -1,5 +1,5 @@
-export function inspectPage(page, view) {
-  return page.evaluate(({ limit, width, height, view }) => {
+export function inspectPage(page, view, filter) {
+  return page.evaluate(({ limit, width, height, view, filter }) => {
     const visual = window.visualViewport;
     const scale = visual ? width / visual.width : 1;
 
@@ -37,9 +37,12 @@ export function inspectPage(page, view) {
 
     const issues = [];
     function add(element, rule, details, repair) {
+      if (issues.length >= limit || (filter && rule !== filter.rule)) return;
       const bounds = element && box(element);
-      if (issues.length >= limit || (element && !bounds)) return;
-      issues.push({ rule, ...details, selector: element && selector(element), box: bounds, repair });
+      if (element && !bounds) return;
+      const location = element && selector(element);
+      if (filter?.selector !== undefined && filter.selector !== location) return;
+      issues.push({ rule, ...details, selector: location, box: bounds, repair });
     }
 
     const heading = [...document.querySelectorAll("h1")].find((element) => box(element));
@@ -95,5 +98,5 @@ export function inspectPage(page, view) {
           ? [{ selector: selector(element), box: bounds, tag: element.localName }] : [];
       }).slice(0, 25);
     return { issues, regions, width, height };
-  }, { limit: 8, view, ...page.viewportSize() });
+  }, { limit: 8, view, filter, ...page.viewportSize() });
 }

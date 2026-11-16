@@ -5,20 +5,24 @@ import { inspectPage } from "../site-audit/inspect.js";
 export function previewWebsiteFix(target, item, recipe, context) {
   const { view, rule, selector } = recipe;
   return withBrowser(target, (browser) => withPage(browser, target.url, view, async (page) => {
-    const scan = await inspectPage(page, view);
-    if (!scan.issues.some((issue) => issue.rule === rule && issue.selector === selector)) {
+    const scan = await inspectPage(page, view, { rule, selector });
+    const original = scan.issues[0];
+    if (!original) {
       throw new InputError("The page changed and this issue could not be reproduced.");
     }
     const before = await capturePage(page);
     await applyPageFix(page, recipe);
     const after = await capturePage(page);
-    const recheck = await inspectPage(page, view);
-    const verified = !recheck.issues.some((issue) => issue.rule === rule
-      && (rule === "overflow" || issue.selector === selector));
+    const recheck = await inspectPage(page, view, {
+      rule,
+      ...(rule === "field-label" && { selector }),
+    });
+    const verified = recheck.issues.length === 0;
     return {
       kind: "screenshots", verified,
       before: context.asset(`${item.id}-before.png`, before),
       after: context.asset(`${item.id}-after.png`, after),
+      beforeBox: original.box,
       summary: verified ? "The original check passed after applying the preview." : "The issue still appears in the preview.",
     };
   }));

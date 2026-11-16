@@ -23,7 +23,7 @@ export function createQueue({
     }
 
     const job = { id: randomUUID(), target, status: "queued", progress: 0, stage: "Queued" };
-    const record = { job, assets: new Map(), pendingFixes: new Map() };
+    const record = { job, assets: new Map(), assetBytes: 0, pendingFixes: new Map() };
     records.set(job.id, record);
     pending.push(record);
     queueMicrotask(drain);
@@ -49,7 +49,10 @@ export function createQueue({
         Object.assign(job, { progress, stage });
       },
       asset(name, bytes) {
+        const size = record.assetBytes - (record.assets.get(name)?.byteLength ?? 0) + bytes.byteLength;
+        if (size > 18 * 1024 * 1024) throw new InputError("This audit reached its screenshot storage limit.");
         record.assets.set(name, bytes);
+        record.assetBytes = size;
         return `/api/audits/${job.id}/assets/${name}`;
       },
     };
@@ -66,6 +69,7 @@ export function createQueue({
     } catch (error) {
       if (!(error instanceof InputError)) console.error(error);
       record.assets.clear();
+      record.assetBytes = 0;
       Object.assign(job, {
         status: "failed", stage: "Audit failed",
         error: error instanceof InputError ? error.message : "The audit could not finish. Please try again.",
