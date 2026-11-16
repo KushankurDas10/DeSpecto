@@ -48,10 +48,11 @@ async function readTree(directory) {
     git(directory, ["rev-parse", "HEAD"]),
   ]);
   const entries = tree.split("\0").flatMap((entry) => {
-    const match = /^100(?:644|755) blob ([a-f\d]+)\t([\s\S]+)$/.exec(entry);
-    return match ? [{ hash: match[1], path: match[2] }] : [];
+    const match = /^(\d{6}) (?:blob|commit) ([a-f\d]+)\t([\s\S]+)$/.exec(entry);
+    return match ? [{ mode: match[1], hash: match[2], path: match[3] }] : [];
   });
-  const candidates = entries.filter(({ path }) => (textFile.test(path) || rootReadme.test(path)) && !excluded.test(path));
+  const candidates = entries.filter(({ mode, path }) => mode.startsWith("100")
+    && (textFile.test(path) || rootReadme.test(path)) && !excluded.test(path));
   candidates.sort((left, right) => priority(left.path) - priority(right.path));
 
   const files = new Map();
@@ -79,5 +80,6 @@ async function readTree(directory) {
 function priority(path) {
   if (rootReadme.test(path)) return 0;
   if (path === "package.json" || path.startsWith(".github/workflows/")) return 1;
+  if (path.endsWith("/package.json")) return 2;
   return 2 + path.split("/").length;
 }

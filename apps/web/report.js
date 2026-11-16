@@ -161,7 +161,12 @@ function renderFix(detail, id, item) {
     if (fix.kind === "diff") {
       const patch = element("pre", "patch", fix.patch);
       patch.tabIndex = 0;
-      preview.append(patch);
+      const download = element("a", "button", "Download patch");
+      download.href = `/api/audits/${id}/findings/${item.id}/patch`;
+      download.download = "despecto-fix.patch";
+      const actions = element("div", "fix-download");
+      actions.append(download);
+      preview.append(patch, actions);
     } else {
       const comparison = element("div", "comparison");
       for (const [label, url] of [["Before", fix.before], ["After", fix.after]]) {

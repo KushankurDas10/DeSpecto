@@ -16,9 +16,9 @@ Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The workspace includes publ
 
 ## What the checks cover
 
-- **Repository** · Checks local README links, documented package scripts, and package script entry points. Git reads a bounded set of files from the default branch without checking out or running submitted code.
+- **Repository** · Checks relative README links, package commands in their documented working directory, and script entry points. It flags missing root READMEs for runnable packages. Git reads a bounded set of files from the default branch without checking out or running submitted code.
 - **Website** · Captures the first desktop and mobile viewports and checks horizontal overflow, viewport settings, page titles, image descriptions, and form labels.
-- **Fix previews** · Provides a diff when a broken README link has a unique replacement. Re-renders compatible website changes and reruns the check against the preview. Preview changes stay inside DeSpecto.
+- **Fix previews** · Provides a downloadable patch when a broken README link has a unique replacement. Re-renders compatible website changes and reruns the check against the preview. Preview changes stay inside DeSpecto.
 
 Jobs and evidence are held in memory. The server keeps up to 20 reports, and restarting it clears them.
 
@@ -44,3 +44,9 @@ Built-in checks and captions work without credentials. The browser can speak cap
 ## Download a walkthrough
 
 Install FFmpeg with H.264 support and make it available on `PATH`, or set `FFMPEG_PATH` to its executable. Restart DeSpecto, open an audit's **Walkthrough** tab, select the language, and choose **Export MP4**. Download the finished video from the same tab. Export burns in the captions and evidence highlights and uses provider audio to time available narration. The server retains the most recent export.
+
+## Level 1 verification
+
+Run `npm run evaluate` for the built-in baseline. The suite completed on 10 public GitHub repositories and 5 public websites. It checked screenshot coordinates, confirmed that the W3C accessibility examples produced different image findings, rechecked the demo website's fix, and verified that Git accepts a generated README patch. Provider checks run separately through `npm run check:providers`.
+
+For the demo, audit the GitHub example and open a finding's source link. Audit the website example, open **Walkthrough**, select Telugu, then return to the finding and choose **Show fix** to compare the original mobile viewport against the rechecked preview.

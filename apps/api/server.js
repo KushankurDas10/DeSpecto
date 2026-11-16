@@ -73,6 +73,14 @@ export function createApp(queue = createQueue({
         const name = /^assets\/([a-z\d-]+\.png)$/.exec(action)?.[1];
         const bytes = name && queue.asset(id, name);
         if (bytes) return send(response, 200, bytes, "image/png");
+        const patchId = /^findings\/([a-f\d-]+)\/patch$/.exec(action)?.[1];
+        if (patchId) {
+          const fix = job?.result?.findings.find((item) => item.id === patchId)?.fix;
+          if (fix?.kind === "diff") {
+            response.setHeader("Content-Disposition", "attachment; filename=despecto-fix.patch");
+            return send(response, 200, fix.patch, "text/x-diff; charset=utf-8");
+          }
+        }
         const audio = /^audio\/(\d{1,2})$/.exec(action)?.[1];
         if (job?.status === "complete" && (action === "walkthrough" || audio !== undefined)) {
           const lang = readLanguage(url);

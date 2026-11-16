@@ -148,6 +148,7 @@ progress { width: 100%; height: 9px; accent-color: #497539; }
 .code-line > span:first-child { color: #a1c298; text-align: right; min-width: 35px; user-select: none; }
 .patch { padding: 12px; }
 .fix-section { margin-top: 18px; }
+.fix-download { margin-top: 10px; }
 .fix-summary { margin: 12px 0 8px; color: var(--muted); font-size: 13px; }
 .fix-summary strong { color: var(--ink); }
 .comparison { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }

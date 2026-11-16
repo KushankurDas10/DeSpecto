@@ -68,7 +68,7 @@ Return {"findings":[{"region":0,"title":"specific issue","explanation":"what vis
     ],
     { vision: true },
   );
-  if (!Array.isArray(data?.findings)) return [];
+  if (!Array.isArray(data?.findings)) throw new Error("Model response is missing findings.");
   return data.findings.slice(0, 2).flatMap((item) => {
     if (!item || !Number.isInteger(item.region) || typeof item.title !== "string" || !item.title.trim()
       || typeof item.explanation !== "string" || !item.explanation.trim()) return [];
