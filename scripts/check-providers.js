@@ -31,14 +31,16 @@ const checks = [
     }
   }],
   ...Object.entries(captions).map(([language, caption]) => [`Speech ${language}`, async () => {
-    assert.ok(speechConfigured(), "Set AZURE_SPEECH_KEY and AZURE_SPEECH_REGION.");
-    const audio = await synthesize({ language, caption });
-    const mp3 = audio?.subarray(0, 3).toString() === "ID3" || (audio?.[0] === 0xff && (audio[1] & 0xe0) === 0xe0);
-    assert.ok(audio?.length > 1000 && mp3, "The provider did not return an MP3 scene.");
+    assert.ok(speechConfigured(), "Set GEMINI_API_KEY.");
+    const { bytes, contentType } = await synthesize({ language, caption });
+    const wav = bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WAVE";
+    const mp3 = bytes.toString("ascii", 0, 3) === "ID3" || (bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0);
+    assert.ok(bytes.length > 1000 && (contentType === "audio/wav" ? wav : mp3), "The provider did not return playable narration.");
   }]),
 ];
 
-for (const [name, check] of checks) {
+const selected = process.argv.includes("--speech") ? checks.slice(2) : checks;
+for (const [name, check] of selected) {
   try {
     await check();
     console.log(`PASS ${name}`);

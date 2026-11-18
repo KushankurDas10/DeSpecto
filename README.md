@@ -24,20 +24,19 @@ Completed reports, fix previews, and screenshots are saved in the ignored `.desp
 
 ## AI review and narration
 
-Create a local `.env` at the repository root. Get an [OpenRouter API key](https://openrouter.ai/settings/keys) with credit for [Qwen3.6](https://openrouter.ai/qwen/qwen3.6-35b-a3b). Create an [Azure Speech resource](https://learn.microsoft.com/azure/ai-services/speech-service/get-started-text-to-speech?pivots=programming-language-rest) and copy either key and the region from its **Keys and Endpoint** page.
+Create a local `.env` at the repository root. For AI review, get an [OpenRouter API key](https://openrouter.ai/settings/keys) with credit for [Qwen3.6](https://openrouter.ai/qwen/qwen3.6-35b-a3b). For narration, get a [Gemini API key](https://aistudio.google.com/api-keys) in Google AI Studio. Gemini 3.8 Flash TTS supports English, Hindi, and Telugu on the [Gemini free tier](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.8-flash-tts), subject to project limits.
 
 ```dotenv
 AI_BASE_URL=https://openrouter.ai/api/v1
 AI_API_KEY=your_openrouter_key
 AI_MODEL=qwen/qwen3.6-35b-a3b
 AI_VISION_MODEL=qwen/qwen3.6-35b-a3b
-AZURE_SPEECH_KEY=your_azure_speech_key
-AZURE_SPEECH_REGION=your_speech_resource_region
+GEMINI_API_KEY=your_google_ai_studio_key
 ```
 
-Run `npm run check:providers` to verify text review, image review, and audio in English, Hindi, and Telugu. This command makes short billable requests to the configured providers. Restart the app after changing `.env`.
+Run `npm run check:providers -- --speech` to verify narration alone. Run `npm run check:providers` to also verify text and image review. These commands send short requests to the configured providers. Restart the app after changing `.env`.
 
-The text and vision models can use another compatible chat completions API through `AI_BASE_URL`. To use another speech provider with an OpenAI-compatible MP3 endpoint, set `TTS_BASE_URL`, `TTS_MODEL`, and `TTS_API_KEY` in place of the Azure variables. Set `TTS_VOICE_EN`, `TTS_VOICE_HI`, or `TTS_VOICE_TE` to override the voices for either provider.
+The text and vision models can use another compatible chat completions API through `AI_BASE_URL`. For an OpenAI-compatible MP3 speech endpoint, set `TTS_BASE_URL`, `TTS_MODEL`, and `TTS_API_KEY` in place of `GEMINI_API_KEY`. Set `TTS_VOICE_EN`, `TTS_VOICE_HI`, or `TTS_VOICE_TE` to override the default voice (`Charon` for Gemini).
 
 Built-in checks and captions work without credentials. The browser can speak captions when it has an installed voice for the selected language.
 

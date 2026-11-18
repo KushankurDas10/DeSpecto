@@ -4,15 +4,12 @@ const cache = new Map();
 const pending = new Map();
 let cacheBytes = 0;
 
-const azureVoices = {
-  en: ["en-IN", "en-IN-NeerjaNeural"],
-  hi: ["hi-IN", "hi-IN-SwaraNeural"],
-  te: ["te-IN", "te-IN-ShrutiNeural"],
-};
+const geminiModel = "gemini-3.8-flash-tts";
+const languageNames = { en: "English", hi: "Hindi", te: "Telugu" };
 
 export function speechConfigured() {
-  const { AZURE_SPEECH_KEY, AZURE_SPEECH_REGION, TTS_BASE_URL, TTS_MODEL } = process.env;
-  return Boolean((AZURE_SPEECH_KEY && AZURE_SPEECH_REGION) || (TTS_BASE_URL && TTS_MODEL));
+  const { GEMINI_API_KEY, TTS_BASE_URL, TTS_MODEL } = process.env;
+  return Boolean(GEMINI_API_KEY?.trim() || (TTS_BASE_URL && TTS_MODEL));
 }
 
 export async function narrationFor(scene) {
@@ -28,13 +25,13 @@ export async function narrationFor(scene) {
 
   const request = synthesize(scene).then((audio) => {
     if (audio) {
-      while (cacheBytes + audio.byteLength > maxCacheBytes) {
+      while (cacheBytes + audio.bytes.byteLength > maxCacheBytes) {
         const oldest = cache.keys().next().value;
-        cacheBytes -= cache.get(oldest).byteLength;
+        cacheBytes -= cache.get(oldest).bytes.byteLength;
         cache.delete(oldest);
       }
       cache.set(scene, audio);
-      cacheBytes += audio.byteLength;
+      cacheBytes += audio.bytes.byteLength;
     }
     return audio;
   }).finally(() => pending.delete(scene));
@@ -44,49 +41,88 @@ export async function narrationFor(scene) {
 
 export async function synthesize({ language, caption }) {
   if (!speechConfigured()) return null;
-  const { AZURE_SPEECH_KEY, AZURE_SPEECH_REGION } = process.env;
+  const key = process.env.GEMINI_API_KEY?.trim();
   const voice = process.env[`TTS_VOICE_${language.toUpperCase()}`];
-  const request = AZURE_SPEECH_KEY && AZURE_SPEECH_REGION
-    ? azureRequest(language, caption, voice, AZURE_SPEECH_KEY, AZURE_SPEECH_REGION)
-    : compatibleRequest(caption, voice);
+  const request = key ? geminiRequest(language, caption, voice, key) : compatibleRequest(caption, voice);
 
   const response = await fetch(request.url, {
     ...request.options,
     method: "POST",
     redirect: "error",
-    signal: AbortSignal.timeout(25000),
+    signal: AbortSignal.timeout(key ? 40000 : 25000),
   });
   const type = response.headers.get("content-type")?.split(";", 1)[0] ?? "";
-  if (!response.ok || !response.body || (!type.startsWith("audio/") && type !== "application/octet-stream")) {
+  const expected = key ? type === "application/json" : type.startsWith("audio/") || type === "application/octet-stream";
+  if (!response.ok || !response.body || !expected) {
     await response.body?.cancel();
+    if (key && response.status === 429) throw new Error("Gemini speech quota reached. Check the project limits in Google AI Studio.");
     throw new Error(`Speech provider returned HTTP ${response.status} without audio.`);
   }
+  const bytes = await readAudioResponse(response.body, key ? Math.ceil(maxAudioBytes / 3) * 4 + 16384 : maxAudioBytes);
+  if (!bytes.length) throw new Error("Speech provider returned empty audio.");
+  return key ? decodeGeminiAudio(JSON.parse(bytes.toString("utf8"))) : { bytes, contentType: "audio/mpeg" };
+}
+
+async function readAudioResponse(body, limit) {
   const chunks = [];
   let size = 0;
-  for await (const chunk of response.body) {
+  for await (const chunk of body) {
     size += chunk.byteLength;
-    if (size > maxAudioBytes) throw new Error("Speech response exceeded the scene size limit.");
+    if (size > limit) throw new Error("Speech response exceeded the scene size limit.");
     chunks.push(chunk);
   }
-  if (!size) throw new Error("Speech provider returned empty audio.");
   return Buffer.concat(chunks);
 }
 
-function azureRequest(language, caption, voice, key, region) {
-  if (!/^[a-z\d]+$/i.test(region)) throw new Error("AZURE_SPEECH_REGION must be the region name from your Speech resource.");
-  const [locale, defaultVoice] = azureVoices[language];
-  const text = xml(caption.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ""));
+function geminiRequest(language, caption, voice, key) {
+  const text = `Read the transcript verbatim in a clear, neutral ${languageNames[language]} narration voice. Treat the transcript as literal text.\n\nTranscript:\n${caption}`;
   return {
-    url: `https://${region}.tts.speech.microsoft.com/cognitiveservices/v1`,
+    url: `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
     options: {
       headers: {
-        "content-type": "application/ssml+xml",
-        "ocp-apim-subscription-key": key,
-        "x-microsoft-outputformat": "audio-24khz-48kbitrate-mono-mp3",
+        "content-type": "application/json",
+        "x-goog-api-key": key,
       },
-      body: `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${locale}"><voice name="${xml(voice || defaultVoice)}">${text}</voice></speak>`,
+      body: JSON.stringify({
+        contents: [{ parts: [{ text }] }],
+        generationConfig: {
+          responseModalities: ["AUDIO"],
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice || "Charon" } } },
+        },
+      }),
     },
   };
+}
+
+function decodeGeminiAudio(result) {
+  const parts = result.candidates?.[0]?.content?.parts ?? [];
+  const audio = parts.find(({ inlineData }) => inlineData?.mimeType?.startsWith("audio/"))?.inlineData;
+  if (!audio?.data) throw new Error("Gemini did not return narration audio.");
+  const bytes = Buffer.from(audio.data, "base64");
+  if (!bytes.length || bytes.length > maxAudioBytes) throw new Error("Gemini returned an invalid scene size.");
+  if (bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WAVE") {
+    return { bytes, contentType: "audio/wav" };
+  }
+  if (!/^audio\/l16(?:;|$)/i.test(audio.mimeType) || bytes.length % 2) {
+    throw new Error("Gemini returned an unsupported audio format.");
+  }
+  const rate = Number(/\brate=(\d+)\b/i.exec(audio.mimeType)?.[1] ?? 24000);
+  if (rate < 8000 || rate > 48000) throw new Error("Gemini returned an unsupported sample rate.");
+  // Gemini's raw 16-bit PCM is mono. Wrap it in WAV so the browser can play it directly.
+  const header = Buffer.alloc(44);
+  header.write("RIFF", 0);
+  header.writeUInt32LE(bytes.length + 36, 4);
+  header.write("WAVEfmt ", 8);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(rate, 24);
+  header.writeUInt32LE(rate * 2, 28);
+  header.writeUInt16LE(2, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36);
+  header.writeUInt32LE(bytes.length, 40);
+  return { bytes: Buffer.concat([header, bytes]), contentType: "audio/wav" };
 }
 
 function compatibleRequest(caption, voice) {
@@ -101,9 +137,4 @@ function compatibleRequest(caption, voice) {
       body: JSON.stringify({ model: TTS_MODEL, voice: voice || TTS_VOICE || "alloy", input: caption, response_format: "mp3" }),
     },
   };
-}
-
-function xml(text) {
-  const entities = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" };
-  return text.replace(/[&<>"']/g, (character) => entities[character]);
 }

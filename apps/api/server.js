@@ -97,7 +97,7 @@ export function createApp(queue = appQueue()) {
           const scene = walkthrough.scenes[Number(audio)];
           if (!scene || !walkthrough.speechAvailable) return send(response, 404, { error: "Voice unavailable." });
           const speech = await narrationFor(scene).catch(() => null);
-          if (speech) return send(response, 200, speech, "audio/mpeg");
+          if (speech) return send(response, 200, speech.bytes, speech.contentType);
           return send(response, 502, { error: "Voice unavailable." });
         }
       }

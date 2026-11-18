@@ -70,12 +70,12 @@ async function render(job, language, images, state) {
         scene, label: job.target.label, position: index + 1, total: scenes.length, screenshot,
       });
       const image = `frame-${index}.png`;
-      const speech = `voice-${index}.mp3`;
       const clip = `scene-${index}.mp4`;
       await writeFile(join(directory, image), frame);
       const audio = await narrationFor(scene).catch(() => null);
+      const speech = `voice-${index}.${audio?.contentType === "audio/wav" ? "wav" : "mp3"}`;
       if (audio) {
-        await writeFile(join(directory, speech), audio);
+        await writeFile(join(directory, speech), audio.bytes);
         narrated += 1;
       }
       await ffmpeg([
