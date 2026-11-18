@@ -1,4 +1,4 @@
-import { button, element, request, showEvidence } from "./dom.js";
+import { button, element, request, showSceneEvidence } from "./dom.js";
 import { showExport } from "./export.js";
 
 const voices = { en: "en-US", hi: "hi-IN", te: "te-IN" };
@@ -43,6 +43,10 @@ export function createWalkthrough(container, job) {
   let index = 0;
   let playing = false;
   let finished = false;
+  let seekScene = () => {};
+  let sceneTime = 1;
+  const resize = () => seekScene(sceneTime);
+  window.addEventListener("resize", resize);
   language.addEventListener("change", () => {
     selectedLanguage = language.value;
     void load();
@@ -52,9 +56,10 @@ export function createWalkthrough(container, job) {
   return () => {
     controller?.abort();
     stop();
+    window.removeEventListener("resize", resize);
   };
 
-  async function load() {
+  async function load(fixId) {
     controller?.abort();
     controller = new AbortController();
     const { signal } = controller;
@@ -68,7 +73,8 @@ export function createWalkthrough(container, job) {
       const result = await request(`/api/audits/${job.id}/walkthrough?lang=${language.value}`, { signal });
       if (signal.aborted) return;
       script = result;
-      move(0, false);
+      const preview = fixId ? result.scenes.findIndex((scene) => scene.findingId === fixId && scene.comparison) : -1;
+      move(Math.max(0, preview), false);
       if (result.exportAvailable) showExport(exports, job, language.value, signal);
     } catch (error) {
       if (!signal.aborted) {
@@ -88,13 +94,45 @@ export function createWalkthrough(container, job) {
     const title = element("h3", "", scene.title);
     title.lang = scene.language;
     stage.append(title);
-    if (scene.evidence) showEvidence(stage, scene.evidence, { repository: job.target.url, revision: job.result.revision });
+    seekScene = showSceneEvidence(stage, scene, { repository: job.target.url, revision: job.result.revision });
     const caption = element("p", "caption", scene.caption);
     caption.lang = scene.language;
     stage.append(caption);
+    sceneTime = 1;
+    seekScene(sceneTime);
+    if (scene.fixAvailable && !scene.comparison) addFixControl(scene);
     setStatus(scene.language !== language.value ? "This finding is available in English." : "");
     setSceneControls();
     if (autoplay) void start();
+  }
+
+  function addFixControl(scene) {
+    const actions = element("div", "scene-actions");
+    const preview = script.scenes.findIndex((candidate) => candidate.findingId === scene.findingId && candidate.comparison);
+    const action = button(preview >= 0 ? "View fix" : "Show fix", "button", async () => {
+      if (preview >= 0) {
+        move(preview, false);
+        return;
+      }
+      stop();
+      setSceneControls();
+      const { signal } = controller;
+      action.disabled = true;
+      action.textContent = "Preparing fix…";
+      try {
+        const fix = await request(`/api/audits/${job.id}/findings/${scene.findingId}/fix`, { method: "POST", signal });
+        const item = job.result.findings.find(({ id }) => id === scene.findingId);
+        if (item) item.fix = fix;
+        if (!signal.aborted) void load(scene.findingId);
+      } catch (error) {
+        if (signal.aborted) return;
+        setStatus(error.message);
+        action.disabled = false;
+        action.textContent = "Retry fix";
+      }
+    });
+    actions.append(action);
+    stage.append(actions);
   }
 
   function setSceneControls() {
@@ -127,9 +165,11 @@ export function createWalkthrough(container, job) {
     const current = { scene, started: performance.now(), elapsed: 0 };
     playback = current;
     playing = true;
+    sceneTime = 0;
+    seekScene(sceneTime);
     setSceneControls();
     if (script.speechAvailable) {
-      const audio = new Audio(`/api/audits/${job.id}/audio/${index}?lang=${language.value}`);
+      const audio = new Audio(`/api/audits/${job.id}/audio/${index}?lang=${language.value}&revision=${encodeURIComponent(script.revision)}`);
       current.audio = audio;
       audio.onended = () => end(current);
       try {
@@ -197,6 +237,8 @@ export function createWalkthrough(container, job) {
     const current = playback;
     if (!playing || !current) return;
     const elapsed = (current.elapsed + now - current.started) / 1000;
+    sceneTime = Math.min(1, (current.audio?.currentTime ?? elapsed) / 1.4);
+    seekScene(sceneTime);
     const ratio = current.audio
       ? current.audio.currentTime / (current.audio.duration || current.scene.duration)
       : elapsed / current.scene.duration;

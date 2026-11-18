@@ -6,6 +6,7 @@ export const viewports = Object.freeze({
   desktop: { viewport: { width: 1440, height: 960 } },
   mobile: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
 });
+export const maxCaptureHeight = 12000;
 
 export async function withBrowser(target, inspect) {
   try {
@@ -75,12 +76,40 @@ export async function withPage(browser, url, view, inspect) {
       throw new InputError(`The website returned HTTP ${response?.status() ?? "unknown"}.`);
     }
     await page.waitForLoadState("load", { timeout: 3000 }).catch(() => {});
+    await settlePage(page);
     return await inspect(page);
   } finally {
     await context.close();
   }
 }
 
-export function capturePage(page) {
-  return page.screenshot({ animations: "disabled", caret: "hide", timeout: 8000 });
+async function settlePage(page) {
+  // Scroll through the capture area to trigger lazy images and viewport-based entrances.
+  await page.waitForTimeout(700);
+  const offsets = await page.evaluate((limit) => {
+    const step = Math.max(1, Math.floor(window.innerHeight * .8));
+    const bottom = Math.min(document.documentElement.scrollHeight, limit) - window.innerHeight;
+    return Array.from({ length: Math.min(18, Math.max(0, Math.ceil(bottom / step))) }, (_, i) =>
+      Math.min((i + 1) * step, bottom));
+  }, maxCaptureHeight);
+  for (const offset of offsets) {
+    await page.evaluate((top) => window.scrollTo({ top, behavior: "instant" }), offset);
+    await page.waitForTimeout(150);
+  }
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  await page.evaluate(async (limit) => {
+    const images = [...document.images].filter((image) => image.getBoundingClientRect().top < limit);
+    await Promise.race([
+      Promise.allSettled([document.fonts.ready, ...images.map((image) => image.decode())]),
+      new Promise((resolve) => setTimeout(resolve, 1800)),
+    ]);
+  }, maxCaptureHeight);
+  await page.waitForTimeout(650);
+}
+
+export function capturePage(page, { width, height }) {
+  return page.screenshot({
+    type: "jpeg", quality: 80, fullPage: true, clip: { x: 0, y: 0, width, height },
+    scale: "css", caret: "hide", timeout: 10000,
+  });
 }

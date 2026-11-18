@@ -172,7 +172,8 @@ function renderFix(detail, id, item) {
       for (const [label, url] of [["Before", fix.before], ["After", fix.after]]) {
         const card = element("figure");
         card.append(element("figcaption", "", label), screenshot({
-          ...item.evidence, screenshot: url, box: label === "Before" ? fix.beforeBox : null,
+          ...item.evidence, ...(label === "Before" ? fix.beforeSize : fix.afterSize),
+          screenshot: url, box: label === "Before" ? fix.beforeBox : null,
         }, `${label} applying the proposed change`));
         comparison.append(card);
       }

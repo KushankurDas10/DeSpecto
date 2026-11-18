@@ -10,19 +10,23 @@ export function previewWebsiteFix(target, item, recipe, context) {
     if (!original) {
       throw new InputError("The page changed and this issue could not be reproduced.");
     }
-    const before = await capturePage(page);
+    const before = await capturePage(page, scan);
     await applyPageFix(page, recipe);
-    const after = await capturePage(page);
     const recheck = await inspectPage(page, view, {
       rule,
-      ...(rule === "field-label" && { selector }),
+      targetSelector: selector,
+      ...(["field-label", "image-crop", "text-contrast"].includes(rule) && { selector }),
     });
-    const verified = recheck.issues.length === 0;
+    const after = await capturePage(page, recheck);
+    const verified = recheck.issues.length === 0 && (!selector || Boolean(recheck.targetBox));
     return {
       kind: "screenshots", verified,
-      before: context.asset(`${item.id}-before.png`, before),
-      after: context.asset(`${item.id}-after.png`, after),
+      before: context.asset(`${item.id}-before.jpg`, before),
+      after: context.asset(`${item.id}-after.jpg`, after),
+      beforeSize: { width: scan.width, height: scan.height },
+      afterSize: { width: recheck.width, height: recheck.height },
       beforeBox: original.box,
+      afterBox: recheck.targetBox,
       summary: verified ? "The original check passed after applying the preview." : "The issue still appears in the preview.",
     };
   }));
@@ -45,8 +49,13 @@ export async function applyPageFix(page, { property, selector, value }) {
     if (!element) return false;
     if (property === "aria-label") {
       element.setAttribute("aria-label", value);
+    } else if (property === "image-fit") {
+      element.style.setProperty("object-fit", "contain", "important");
+    } else if (property === "contrast") {
+      element.style.setProperty("color", value, "important");
     } else if (property === "width") {
-      element.style.setProperty("max-inline-size", "100%", "important");
+      const room = document.documentElement.clientWidth - Math.max(0, element.getBoundingClientRect().left);
+      element.style.setProperty("max-inline-size", `min(100%, ${Math.floor(room)}px)`, "important");
       element.style.setProperty("min-inline-size", "0", "important");
       element.style.setProperty("overflow-wrap", "anywhere", "important");
       element.style.setProperty("box-sizing", "border-box", "important");

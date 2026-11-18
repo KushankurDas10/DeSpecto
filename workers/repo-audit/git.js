@@ -45,7 +45,9 @@ export async function readRepository(target, progress) {
     progress(38, "Indexing source files");
     return await readTree(join(directory, "repo"));
   } finally {
-    await rm(directory, { recursive: true, force: true, maxRetries: 3 });
+    await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch((error) => {
+      console.warn(`Could not clean up the temporary Git checkout (${error.code}).`);
+    });
   }
 }
 

@@ -17,7 +17,7 @@ Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The workspace includes publ
 ## What the checks cover
 
 - **Repository** · Checks relative README links, package commands in their documented working directory, and script entry points. It flags missing root READMEs for runnable packages. Git reads a bounded set of files from the default branch without checking out or running submitted code.
-- **Website** · Captures the first desktop and mobile viewports and checks horizontal overflow, viewport settings, page titles, image descriptions, and form labels.
+- **Website** · Scrolls through public pages to load lazy content, then captures desktop and mobile screenshots up to 12,000 pixels tall. Checks include overflow, viewport settings, page titles, image descriptions, form labels, and text contrast on solid backgrounds. Optional AI review inspects the top of each capture.
 - **Fix previews** · Provides a downloadable patch when a broken README link has a unique replacement. Re-renders compatible website changes and reruns the check against the preview. Preview changes stay inside DeSpecto.
 
 Completed reports, fix previews, and screenshots are saved in the ignored `.despecto/` directory and survive server restarts. The server keeps up to 20 reports. Set `REPORT_DIR` to use a different local directory.
@@ -42,7 +42,7 @@ Built-in checks and captions work without credentials. The browser can speak cap
 
 ## Download a walkthrough
 
-Install FFmpeg with H.264 support and make it available on `PATH`, or set `FFMPEG_PATH` to its executable. Restart DeSpecto, open an audit's **Walkthrough** tab, select the language, and choose **Export MP4**. Download the finished video from the same tab. Export burns in the captions and evidence highlights and uses provider audio to time available narration. The server retains the most recent export.
+Install FFmpeg with H.264 support and make it available on `PATH`, or set `FFMPEG_PATH` to its executable. Restart DeSpecto, open an audit's **Walkthrough** tab, and select the narration language. The camera and pointer move toward each finding as it plays. Choose **Show fix** on a supported finding to add a before-and-after scene. **Export MP4** includes those scenes, camera movement, captions, and available narration. The server retains the most recent export.
 
 ## Level 1 verification
 

@@ -139,6 +139,8 @@ progress { width: 100%; height: 9px; accent-color: var(--lime); }
 .shot { position: relative; overflow: hidden; width: fit-content; max-width: 100%; margin: 0 auto; background: var(--night); border: 1px solid var(--line); border-radius: 8px; }
 .shot img { display: block; height: auto; }
 .shot.mobile { max-width: min(100%, 320px); }
+.evidence-scroll { max-height: min(68vh, 780px); overflow: auto; }
+.evidence-full-link { display: inline-block; margin-top: 8px; font-size: 13px; color: var(--muted); }
 .annotation { position: absolute; border: 2px solid #37b12b; border-radius: 3px; background: #aff95d2a; box-shadow: 0 0 0 1px #142e10; pointer-events: none; }
 .code-block, .patch { overflow: auto; border-radius: 8px; border: 1px solid var(--line); margin: 0; background: var(--night); color: var(--ink); font: 13px/1.6 var(--mono); }
 .code-line { display: flex; width: max-content; min-width: 100%; gap: 12px; padding: 4px 12px; }
@@ -162,6 +164,21 @@ progress { width: 100%; height: 9px; accent-color: var(--lime); }
 .stage { background: var(--night); color: var(--ink); padding: clamp(16px, 4vw, 36px); }
 .stage h3 { font-size: clamp(20px, 3vw, 31px); letter-spacing: -.045em; margin-block: 5px 10px; overflow-wrap: anywhere; }
 .stage .shot img { max-height: 470px; object-fit: contain; width: auto; }
+.scene-visual { position: relative; width: 100%; min-width: 0; }
+.motion-frame { position: relative; overflow: hidden; width: 100%; max-width: 900px; margin-inline: auto; aspect-ratio: 16 / 9; background: #0b101b; border: 1px solid var(--line, #333d56); border-radius: 8px; }
+.motion-frame.mobile { max-width: 300px; aspect-ratio: 4 / 5; }
+.motion-frame img { position: absolute; top: 0; left: 0; display: block; max-width: none; }
+.motion-highlight { position: absolute; border: 3px solid #dcfa75; background: #dcfa751c; box-shadow: 0 0 0 1px #17200d; border-radius: 4px; pointer-events: none; }
+.scene-cursor { position: absolute; z-index: 2; width: 20px; height: 25px; filter: drop-shadow(0 1px 2px #000); pointer-events: none; }
+.scene-cursor::before, .scene-cursor::after { content: ""; position: absolute; inset: 0; clip-path: polygon(0 0, 100% 64%, 60% 70%, 79% 94%, 57% 100%, 34% 77%, 0 100%); background: #111625; }
+.scene-cursor::after { inset: 2px 3px 3px 2px; background: #fff; }
+.scene-visual:not(.pointing) > .scene-cursor { visibility: hidden; }
+.scene-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.scene-comparison figure { min-width: 0; }
+.scene-comparison figure:last-child { opacity: var(--after-opacity, 1); }
+.scene-comparison figcaption { margin-bottom: 6px; font-size: 14px; font-weight: 700; }
+.scene-comparison .motion-frame.mobile { max-width: 250px; }
+.scene-actions { margin-top: 12px; }
 .caption { max-width: 850px; color: var(--ink); font-size: 15px; padding-top: 12px; overflow-wrap: anywhere; }
 .play-controls progress { flex: 1; min-width: 60px; }
 .play-controls output { color: var(--muted); font: 12px var(--mono); }

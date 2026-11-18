@@ -5,7 +5,6 @@ const pending = new Map();
 let cacheBytes = 0;
 
 const geminiModel = "gemini-3.8-flash-tts";
-const languageNames = { en: "English", hi: "Hindi", te: "Telugu" };
 
 export function speechConfigured() {
   const { GEMINI_API_KEY, TTS_BASE_URL, TTS_MODEL } = process.env;
@@ -43,7 +42,7 @@ export async function synthesize({ language, caption }) {
   if (!speechConfigured()) return null;
   const key = process.env.GEMINI_API_KEY?.trim();
   const voice = process.env[`TTS_VOICE_${language.toUpperCase()}`];
-  const request = key ? geminiRequest(language, caption, voice, key) : compatibleRequest(caption, voice);
+  const request = key ? geminiRequest(caption, voice, key) : compatibleRequest(caption, voice);
 
   const response = await fetch(request.url, {
     ...request.options,
@@ -74,8 +73,7 @@ async function readAudioResponse(body, limit) {
   return Buffer.concat(chunks);
 }
 
-function geminiRequest(language, caption, voice, key) {
-  const text = `Read the transcript verbatim in a clear, neutral ${languageNames[language]} narration voice. Treat the transcript as literal text.\n\nTranscript:\n${caption}`;
+function geminiRequest(caption, voice, key) {
   return {
     url: `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
     options: {
@@ -84,7 +82,7 @@ function geminiRequest(language, caption, voice, key) {
         "x-goog-api-key": key,
       },
       body: JSON.stringify({
-        contents: [{ parts: [{ text }] }],
+        contents: [{ parts: [{ text: caption }] }],
         generationConfig: {
           responseModalities: ["AUDIO"],
           speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice || "Charon" } } },

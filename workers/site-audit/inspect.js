@@ -1,15 +1,22 @@
+import { maxCaptureHeight } from "./browser.js";
+
 export function inspectPage(page, view, filter) {
-  return page.evaluate(({ limit, width, height, view, filter }) => {
-    const visual = window.visualViewport;
-    const scale = visual ? width / visual.width : 1;
+  return page.evaluate(({ limit, maxHeight, view, filter }) => {
+    const root = document.documentElement;
+    const width = root.clientWidth;
+    const fullHeight = Math.max(root.clientHeight, root.scrollHeight, document.body?.scrollHeight ?? 0);
+    const height = Math.min(fullHeight, maxHeight);
+    const viewportHeight = window.innerHeight;
 
     function box(element) {
       const rect = element.getBoundingClientRect();
-      const x = Math.max(0, Math.floor((rect.left - (visual?.offsetLeft ?? 0)) * scale));
-      const y = Math.max(0, Math.floor((rect.top - (visual?.offsetTop ?? 0)) * scale));
-      const w = Math.min(width, Math.ceil((rect.right - (visual?.offsetLeft ?? 0)) * scale)) - x;
-      const h = Math.min(height, Math.ceil((rect.bottom - (visual?.offsetTop ?? 0)) * scale)) - y;
-      return w > 0 && h > 0 && getComputedStyle(element).visibility === "visible" ? { x, y, w, h } : null;
+      const style = getComputedStyle(element);
+      if (style.visibility !== "visible" || Number(style.opacity) === 0) return null;
+      const x = Math.max(0, Math.floor(rect.left + scrollX));
+      const y = Math.max(0, Math.floor(rect.top + scrollY));
+      const w = Math.min(width, Math.ceil(rect.right + scrollX)) - x;
+      const h = Math.min(height, Math.ceil(rect.bottom + scrollY)) - y;
+      return w > 0 && h > 0 ? { x, y, w, h } : null;
     }
 
     function selector(element) {
@@ -35,6 +42,13 @@ export function inspectPage(page, view, filter) {
         || Array.from(element.labels ?? []).some((label) => label.textContent.trim()));
     }
 
+    function cropped(image) {
+      if (image?.localName !== "img" || !image.naturalWidth || !image.clientHeight
+        || getComputedStyle(image).objectFit !== "cover") return false;
+      const ratio = image.naturalWidth * image.clientHeight / (image.naturalHeight * image.clientWidth);
+      return Number.isFinite(ratio) && Math.abs(Math.log(ratio)) > .12;
+    }
+
     const issues = [];
     function add(element, rule, details, repair) {
       if (issues.length >= limit || (filter && rule !== filter.rule)) return;
@@ -54,7 +68,6 @@ export function inspectPage(page, view, filter) {
       }, suggestion && { property: "title", value: suggestion });
     }
 
-    const root = document.documentElement;
     if (view === "mobile" && !document.querySelector('meta[name="viewport" i]')) {
       add(heading, "mobile-viewport", {
         type: "visual_issue", severity: "medium", title: "Missing mobile viewport setting",
@@ -62,10 +75,14 @@ export function inspectPage(page, view, filter) {
       }, { property: "viewport" });
     }
     const overflow = Math.max(root.scrollWidth, document.body?.scrollWidth ?? 0) - root.clientWidth;
-    if (overflow > 12) {
+    if (overflow > 12 && !["hidden", "clip"].includes(getComputedStyle(document.scrollingElement).overflowX)
+      && !["hidden", "clip"].includes(getComputedStyle(document.body).overflowX)) {
       const elements = Array.from(document.querySelectorAll("body *")).slice(0, 3500);
       // Prefer the widest overflowing element so a patch addresses the layout rather than hiding the scroll.
-      const offenders = elements.filter((element) => box(element) && element.getBoundingClientRect().right > root.clientWidth + 12);
+      const offenders = elements.filter((element) => {
+        const rect = element.getBoundingClientRect();
+        return box(element) && rect.right > width + 12 && getComputedStyle(element).position !== "fixed";
+      });
       offenders.sort((left, right) => right.getBoundingClientRect().width - left.getBoundingClientRect().width);
       const offender = offenders[0];
       add(offender, "overflow", {
@@ -91,12 +108,70 @@ export function inspectPage(page, view, filter) {
       }, placeholder && { property: "aria-label", value: placeholder.slice(0, 100) });
     }
 
+    if (!filter || filter.rule === "text-contrast") {
+      const sample = document.createElement("canvas");
+      sample.width = sample.height = 1;
+      const context = sample.getContext("2d", { willReadFrequently: true });
+      const colors = new Map();
+      const color = (value) => {
+        if (!colors.has(value)) {
+          context.clearRect(0, 0, 1, 1);
+          context.fillStyle = value;
+          context.fillRect(0, 0, 1, 1);
+          colors.set(value, context.getImageData(0, 0, 1, 1).data);
+        }
+        return colors.get(value);
+      };
+      const luminance = (rgb) => [.2126, .7152, .0722].reduce((sum, weight, index) => {
+        const level = rgb[index] / 255;
+        return sum + weight * (level <= .04045 ? level / 12.92 : ((level + .055) / 1.055) ** 2.4);
+      }, 0);
+      const candidates = filter?.selector ? [document.querySelector(filter.selector)]
+        : [...document.querySelectorAll("p, li, a, button, h1, h2, h3, h4, label, span")].slice(0, 1000);
+      let found = 0;
+      for (const element of candidates) {
+        if (!element || !box(element) || element.closest('[disabled], [aria-hidden="true"]')
+          || ![...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim().length > 2)) continue;
+        let background;
+        for (let ancestor = element; ancestor; ancestor = ancestor.parentElement) {
+          const style = getComputedStyle(ancestor);
+          if (style.backgroundImage !== "none" || style.mixBlendMode !== "normal" || Number(style.opacity) < 1) break;
+          const rgb = color(style.backgroundColor);
+          if (!rgb[3]) continue;
+          if (rgb[3] === 255) background = rgb;
+          break;
+        }
+        if (!background) continue;
+        const style = getComputedStyle(element);
+        const foreground = color(style.color);
+        if (foreground[3] !== 255) continue;
+        const fg = luminance(foreground);
+        const bg = luminance(background);
+        const ratio = (Math.max(fg, bg) + .05) / (Math.min(fg, bg) + .05);
+        const size = parseFloat(style.fontSize);
+        const minimum = size >= 24 || (size >= 18.67 && Number(style.fontWeight) >= 700) ? 3 : 4.5;
+        if (ratio >= minimum) continue;
+        add(element, "text-contrast", {
+          type: "accessibility", severity: "medium", title: "Low text contrast",
+          explanation: `The computed text and background colors give a contrast ratio of ${ratio.toFixed(2)}:1. The minimum for text this size is ${minimum}:1.`,
+        }, { property: "contrast", value: 1.05 / (bg + .05) > (bg + .05) / .05 ? "#fff" : "#000" });
+        if (++found >= 2) break;
+      }
+    }
+
+    if (filter?.rule === "image-crop") {
+      const image = document.querySelector(filter.selector);
+      if (cropped(image)) add(image, "image-crop", {}, { property: "image-fit" });
+    }
+
     const regions = Array.from(document.querySelectorAll("main, header, nav, section, article, footer, h1, button, img"))
-      .slice(0, 160).flatMap((element) => {
+      .slice(0, 400).flatMap((element) => {
         const bounds = box(element);
         return bounds && bounds.w >= 30 && bounds.h >= 15
-          ? [{ selector: selector(element), box: bounds, tag: element.localName }] : [];
+          ? [{ selector: selector(element), box: bounds, tag: element.localName, cropped: cropped(element) }] : [];
       }).slice(0, 25);
-    return { issues, regions, width, height };
-  }, { limit: 8, view, filter, ...page.viewportSize() });
+    const target = filter?.targetSelector && document.querySelector(filter.targetSelector);
+    return { issues, regions, width, height, viewportHeight, truncated: fullHeight > height,
+      targetBox: target ? box(target) : null };
+  }, { limit: 8, maxHeight: maxCaptureHeight, view, filter });
 }

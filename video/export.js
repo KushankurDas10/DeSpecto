@@ -5,9 +5,9 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { chromium } from "playwright";
 import { InputError } from "../shared/target.js";
-import { frameSize, prepareFrame, renderFrame } from "./frame.js";
+import { frameSize, motionRate, prepareFrame, renderFrames } from "./frame.js";
 import { narrationFor } from "./speech.js";
-import { walkthroughFor } from "./walkthrough.js";
+import { walkthroughFor, walkthroughRevision } from "./walkthrough.js";
 
 const exec = promisify(execFile);
 const maxBytes = 48 * 1024 * 1024;
@@ -22,7 +22,8 @@ export function createExports() {
   let current;
 
   function get(job, language) {
-    return current?.job === job && current.language === language ? current : null;
+    return current?.job === job && current.language === language && current.revision === walkthroughRevision(job)
+      ? current : null;
   }
 
   async function start(job, language, asset) {
@@ -31,10 +32,19 @@ export function createExports() {
     if (existing && existing.state.status !== "failed") return existing.state;
     if (current?.state.status === "rendering") throw new InputError("Another export is running. Try again shortly.");
 
-    const entry = { job, language, state: { status: "rendering", completed: 0, total: 0 } };
-    const images = new Map((job.result.screenshots ?? []).map(({ url }) => [url, asset(url)]));
+    const entry = { job, language, revision: walkthroughRevision(job), state: { status: "rendering", completed: 0, total: 0 } };
+    const script = walkthroughFor(job, language);
+    const paths = new Set((job.result.screenshots ?? []).map(({ url }) => url));
+    for (const item of job.result.findings) {
+      if (item.evidence.screenshot) paths.add(item.evidence.screenshot);
+      if (item.fix?.kind === "screenshots") {
+        paths.add(item.fix.before);
+        paths.add(item.fix.after);
+      }
+    }
+    const images = new Map([...paths].map((url) => [url, asset(url)]));
     current = entry;
-    void render(job, language, images, entry.state).then(({ bytes, narrated }) => {
+    void render(job, script, images, entry.state).then(({ bytes, narrated }) => {
       entry.bytes = bytes;
       Object.assign(entry.state, { status: "complete", narrated });
     }).catch((error) => {
@@ -49,12 +59,12 @@ export function createExports() {
   return { get, start };
 }
 
-async function render(job, language, images, state) {
+async function render(job, script, images, state) {
   const directory = await mkdtemp(join(tmpdir(), "despecto-video-"));
   const deadline = Date.now() + 240000;
   let browser;
   try {
-    const { scenes } = await walkthroughFor(job, language);
+    const { scenes } = await script;
     state.total = scenes.length;
     browser = await chromium.launch({ chromiumSandbox: true, timeout: 12000 });
     const page = await browser.newPage({ viewport: frameSize, deviceScaleFactor: 1 });
@@ -64,14 +74,12 @@ async function render(job, language, images, state) {
     let narrated = 0;
     for (const [index, scene] of scenes.entries()) {
       if (Date.now() + 1000 >= deadline) throw new InputError("The export reached its four-minute time limit.");
-      const png = images.get(scene.evidence?.screenshot);
-      const screenshot = png && `data:image/png;base64,${png.toString("base64")}`;
-      const frame = await renderFrame(page, {
-        scene, label: job.target.label, position: index + 1, total: scenes.length, screenshot,
-      });
-      const image = `frame-${index}.png`;
+      const frame = embedImages(scene, images);
+      const framePrefix = `frame-${index}-`;
+      await renderFrames(page, {
+        scene: frame, label: job.target.label, position: index + 1, total: scenes.length,
+      }, (position, bytes) => writeFile(join(directory, `${framePrefix}${String(position).padStart(2, "0")}.png`), bytes));
       const clip = `scene-${index}.mp4`;
-      await writeFile(join(directory, image), frame);
       const audio = await narrationFor(scene).catch(() => null);
       const speech = `voice-${index}.${audio?.contentType === "audio/wav" ? "wav" : "mp3"}`;
       if (audio) {
@@ -79,9 +87,10 @@ async function render(job, language, images, state) {
         narrated += 1;
       }
       await ffmpeg([
-        "-loop", "1", "-framerate", "24", "-i", image,
+        "-framerate", String(motionRate), "-i", `${framePrefix}%02d.png`,
         ...(audio ? ["-i", speech] : ["-f", "lavfi", "-i", "anullsrc=r=24000:cl=mono", "-t", String(scene.duration)]),
-        "-c:v", "libx264", "-preset", "ultrafast", "-tune", "stillimage", "-crf", "23", "-pix_fmt", "yuv420p",
+        "-vf", "fps=24,tpad=stop_mode=clone:stop_duration=120",
+        "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-ar", "24000", "-ac", "1", "-b:a", "64k", "-shortest", clip,
       ], directory, deadline);
       clips.push(clip);
@@ -99,6 +108,24 @@ async function render(job, language, images, state) {
     } finally {
       await rm(directory, { recursive: true, force: true, maxRetries: 3 });
     }
+  }
+}
+
+function embedImages(scene, images) {
+  const embedded = { ...scene };
+  if (scene.evidence?.screenshot) embedded.evidence = {
+    ...scene.evidence, screenshot: dataUrl(scene.evidence.screenshot),
+  };
+  if (scene.comparison?.kind === "screenshots") embedded.comparison = {
+    ...scene.comparison, before: dataUrl(scene.comparison.before), after: dataUrl(scene.comparison.after),
+  };
+  return embedded;
+
+  function dataUrl(path) {
+    const bytes = images.get(path);
+    if (!bytes) throw new InputError("A screenshot could not be found. Run a new audit to export it.");
+    const type = path.endsWith(".jpg") ? "image/jpeg" : "image/png";
+    return `data:${type};base64,${bytes.toString("base64")}`;
   }
 }
 

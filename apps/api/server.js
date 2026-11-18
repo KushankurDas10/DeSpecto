@@ -77,9 +77,9 @@ export function createApp(queue = appQueue()) {
         const [, id, action] = audit;
         const job = queue.get(id);
         if (!action && job) return send(response, 200, job);
-        const name = /^assets\/([a-z\d-]+\.png)$/.exec(action)?.[1];
+        const name = /^assets\/([a-z\d-]+\.(?:png|jpg))$/.exec(action)?.[1];
         const bytes = name && queue.asset(id, name);
-        if (bytes) return send(response, 200, bytes, "image/png");
+        if (bytes) return send(response, 200, bytes, name.endsWith(".jpg") ? "image/jpeg" : "image/png");
         const patchId = /^findings\/([a-f\d-]+)\/patch$/.exec(action)?.[1];
         if (patchId) {
           const fix = job?.result?.findings.find((item) => item.id === patchId)?.fix;
@@ -94,6 +94,10 @@ export function createApp(queue = appQueue()) {
           const walkthrough = await walkthroughFor(job, lang);
           if (action === "walkthrough") {
             return send(response, 200, { ...walkthrough, exportAvailable: await exportAvailable() });
+          }
+          const revision = url.searchParams.get("revision");
+          if (revision !== null && revision !== walkthrough.revision) {
+            return send(response, 409, { error: "The walkthrough changed. Open it again to hear the updated scenes." });
           }
           const scene = walkthrough.scenes[Number(audio)];
           if (!scene || !walkthrough.speechAvailable) return send(response, 404, { error: "Voice unavailable." });

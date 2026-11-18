@@ -90,11 +90,14 @@ async function audit(url) {
     assert.ok(finding, "The website demo needs a reproducible viewport fix.");
     const fix = await json(`${path}/findings/${finding.id}/fix`, { method: "POST" });
     assert.equal(fix.verified, true);
-    await Promise.all([checkImage(fix.before, 390, 844), checkImage(fix.after, 390, 844)]);
+    assert.equal(fix.afterSize.width, 390);
+    await Promise.all([checkImage(fix.before, fix.beforeSize.width, fix.beforeSize.height),
+      checkImage(fix.after, fix.afterSize.width, fix.afterSize.height)]);
     for (const lang of ["en", "hi", "te"]) {
       const { scenes } = await json(`${path}/walkthrough?lang=${lang}`);
-      assert.equal(scenes.length, findings.length + 1);
+      assert.equal(scenes.length, findings.length + 2);
       assert.equal(scenes.find(({ findingId }) => findingId === finding.id)?.language, lang);
+      assert.deepEqual(scenes.at(-1).comparison, fix);
     }
   }
   return findings;
@@ -103,10 +106,19 @@ async function audit(url) {
 async function checkImage(path, width, height) {
   const response = await fetch(base + path, { signal: AbortSignal.timeout(10000) });
   assert.equal(response.status, 200);
-  assert.equal(response.headers.get("content-type"), "image/png");
-  const png = Buffer.from(await response.arrayBuffer());
-  assert.equal(png.readUInt32BE(16), width);
-  assert.equal(png.readUInt32BE(20), height);
+  assert.equal(response.headers.get("content-type"), "image/jpeg");
+  const jpeg = Buffer.from(await response.arrayBuffer());
+  assert.equal(jpeg.readUInt16BE(0), 0xffd8);
+  for (let offset = 2; offset + 9 <= jpeg.length && jpeg[offset] === 0xff;) {
+    const marker = jpeg[offset + 1];
+    if (marker === 0xc0 || marker === 0xc2) {
+      assert.equal(jpeg.readUInt16BE(offset + 7), width);
+      assert.equal(jpeg.readUInt16BE(offset + 5), height);
+      return;
+    }
+    offset += 2 + jpeg.readUInt16BE(offset + 2);
+  }
+  assert.fail("Screenshot has no JPEG size header.");
 }
 
 async function run() {
