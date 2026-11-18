@@ -32,6 +32,13 @@ export async function readRepository(target, progress) {
         `${target.url}.git`, "repo"], { timeout: 45000 });
     } catch (error) {
       if (error.code === "ENOENT") throw new InputError("Install Git to audit repositories.");
+      if (error.killed) throw new InputError("GitHub took too long to send the repository. Try again or audit a smaller repository.");
+      if (/could not resolve host|failed to connect|timed out/i.test(error.stderr ?? "")) {
+        throw new InputError("The audit server could not reach GitHub. Check your internet connection and try again.");
+      }
+      if (/repository not found|authentication failed|could not read username|terminal prompts disabled|(?:http|error:) (?:401|403|404)/i.test(error.stderr ?? "")) {
+        throw new InputError("GitHub did not make this repository available without signing in. Check the URL and make sure the repository is public.");
+      }
       throw new InputError("Could not read the repository. Check that it is public and accessible.");
     }
 

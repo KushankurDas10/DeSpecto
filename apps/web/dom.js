@@ -14,12 +14,13 @@ export function button(text, className, click) {
 
 export async function request(url, options) {
   const response = await fetch(url, options);
-  const value = await response.json();
+  const value = await response.json().catch(() => null);
   if (!response.ok) {
-    const error = new Error(value.error || "The request could not be completed.");
+    const error = new Error(value?.error || `The server returned HTTP ${response.status}.`);
     error.status = response.status;
     throw error;
   }
+  if (!value) throw new Error("The server returned an unexpected response.");
   return value;
 }
 

@@ -3,16 +3,17 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#f5f6f3">
+    <meta name="theme-color" content="#0e1320">
     <title>DeSpecto — Audit workspace</title>
     <link rel="stylesheet" href="/style.css">
+    <link rel="icon" href="/favicon.ico" sizes="32x32">
     <script type="module" src="/app.js"></script>
   </head>
   <body>
     <header class="topbar">
       <div class="topbar-inner">
         <a class="brand" href="/" aria-label="DeSpecto home">
-          <span class="brand-mark" aria-hidden="true"></span>
+          <img class="brand-mark" src="/favicon.ico" width="32" height="32" alt="">
           <span>DeSpecto</span>
         </a>
         <a class="source-link" href="https://github.com/KushankurDas10/DeSpecto" target="_blank" rel="noopener noreferrer">
@@ -22,36 +23,40 @@
     </header>
     <main class="workspace">
       <section id="home">
-        <div class="hero">
-          <div class="hero-art" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-          <div class="hero-content">
-            <span class="kicker"><span class="signal" aria-hidden="true"></span> PROJECT AUDIT</span>
-            <h1>Audit a repo<br>or website<span>.</span></h1>
-            <p>Check README claims against source code or inspect a website across screen sizes. Every finding points to the evidence.</p>
+        <header class="workspace-heading">
+          <h1>Audit a project<span>.</span></h1>
+          <p>Verify README claims or check a website across screen sizes. Review the exact lines and screenshots behind each finding.</p>
+        </header>
+        <div class="intake">
+          <div class="audit-entry">
             <form id="audit-form">
-              <label class="sr-only" for="target">Public GitHub or website URL</label>
+              <label for="target">Public GitHub or website URL</label>
               <div class="target-control">
-                <input id="target" name="url" type="text" inputmode="url" maxlength="2048" placeholder="Paste a public GitHub or website URL" required autocomplete="url" spellcheck="false">
+                <input id="target" name="url" type="text" inputmode="url" maxlength="2048" placeholder="https://github.com/owner/repo" required autocomplete="url" spellcheck="false">
                 <button class="button primary" type="submit">Run audit <span aria-hidden="true">↗</span></button>
               </div>
-              <p class="form-error" id="form-error" role="alert" hidden></p>
             </form>
-            <div class="examples">
-              <span>Try an example</span>
-              <button class="example" type="button" data-example="https://github.com/lit/lit">GitHub repo</button>
-              <button class="example" type="button" data-example="https://info.cern.ch/">Website</button>
-            </div>
+            <p class="input-help">GitHub audits require a public repository. Website audits require a publicly reachable page.</p>
           </div>
+          <section class="examples" aria-labelledby="examples-title">
+            <h2 id="examples-title">Try an example</h2>
+            <button class="example" type="button" aria-label="Audit example repository lit/lit" data-example="https://github.com/lit/lit">
+              <span><strong>lit/lit</strong><small>GitHub repository</small></span><span aria-hidden="true">↗</span>
+            </button>
+            <button class="example" type="button" aria-label="Audit example website info.cern.ch" data-example="https://info.cern.ch/">
+              <span><strong>info.cern.ch</strong><small>Public website</small></span><span aria-hidden="true">↗</span>
+            </button>
+          </section>
         </div>
         <section class="history" aria-labelledby="history-title">
           <div class="section-heading">
             <h2 id="history-title">Recent audits</h2>
-            <span>THIS BROWSER</span>
+            <span>Saved in this browser</span>
           </div>
           <div id="history-list" class="history-list"></div>
         </section>
       </section>
-      <section id="active" aria-live="polite" hidden></section>
+      <section id="active" hidden></section>
       <section id="report" hidden></section>
     </main>
   </body>
