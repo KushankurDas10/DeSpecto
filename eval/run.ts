@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { once } from "node:events";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
-import { createApp } from "../apps/api/server.js";
-import { checkRepository } from "../workers/repo-audit/index.js";
-import { previewRepositoryFix } from "../workers/fix/repository.js";
+import type { ZodType } from "zod";
+import { createAuditHandler } from "../apps/api/handler.ts";
+import { errorSchema, fixSchema, jobSchema, walkthroughSchema } from "../shared/contracts.ts";
+import { checkRepository } from "../workers/repo-audit/index.ts";
+import { previewRepositoryFix } from "../workers/fix/repository.ts";
 
 const repositories = [
   "octocat/Hello-World",
@@ -32,21 +33,21 @@ const websites = [
 
 // Evaluate the built-in checks independently of provider credentials.
 delete process.env.AI_BASE_URL;
-const server = createApp().listen(0, "127.0.0.1");
-await once(server, "listening");
-const base = `http://127.0.0.1:${server.address().port}`;
+const handle = createAuditHandler();
+const base = "http://127.0.0.1";
 const targets = [...repositories, ...websites].values();
-const results = [];
+const results: boolean[] = [];
 
-async function json(path, options) {
-  const response = await fetch(base + path, { ...options, signal: AbortSignal.timeout(45000) });
-  const data = await response.json();
-  assert.ok(response.ok, data.error ?? `HTTP ${response.status}`);
-  return data;
+async function json<T>(path: string, schema: ZodType<T>, options?: RequestInit): Promise<T> {
+  const response = await handle(new Request(base + path, options));
+  const data: unknown = await response.json();
+  const error = errorSchema.safeParse(data);
+  assert.ok(response.ok, error.success ? error.data.error : `HTTP ${response.status}`);
+  return schema.parse(data);
 }
 
-async function audit(url) {
-  const queued = await json("/api/audits", {
+async function audit(url: string) {
+  const queued = await json("/api/audits", jobSchema, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ url }),
@@ -56,9 +57,9 @@ async function audit(url) {
   let job = queued;
   while (["queued", "running"].includes(job.status) && Date.now() < deadline) {
     await delay(650);
-    job = await json(path);
+    job = await json(path, jobSchema);
   }
-  assert.equal(job.status, "complete", job.error ?? `Timed out at ${job.stage}`);
+  assert.ok(job.status === "complete", job.status === "failed" ? job.error : `Timed out at ${job.stage}`);
   const { findings, revision, screenshots } = job.result;
   for (const item of findings) {
     assert.equal(item.source, job.target.source);
@@ -69,15 +70,18 @@ async function audit(url) {
       const [start, end] = item.evidence.lines;
       assert.ok(start > 0 && end >= start);
     } else {
-      assert.ok(screenshots.some(({ url }) => url === item.evidence.screenshot));
+      const imageUrl = item.evidence.screenshot;
+      assert.ok(screenshots?.some(({ url }) => url === imageUrl));
       const { box, width, height } = item.evidence;
       if (box) assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.w <= width && box.y + box.h <= height);
     }
   }
 
   if (job.target.source === "repo") {
+    assert.ok(revision);
     assert.match(revision, /^[a-f\d]{40}$/);
   } else {
+    assert.ok(screenshots);
     assert.deepEqual(screenshots.map(({ view }) => view), ["desktop", "mobile"]);
     for (const image of screenshots) await checkImage(image.url, image.width, image.height);
   }
@@ -88,13 +92,14 @@ async function audit(url) {
   if (url === websites[0]) {
     const finding = findings.find(({ fixAvailable, title }) => fixAvailable && title === "Missing mobile viewport setting");
     assert.ok(finding, "The website demo needs a reproducible viewport fix.");
-    const fix = await json(`${path}/findings/${finding.id}/fix`, { method: "POST" });
+    const fix = await json(`${path}/findings/${finding.id}/fix`, fixSchema, { method: "POST" });
     assert.equal(fix.verified, true);
+    assert.ok(fix.kind === "screenshots" && fix.beforeSize && fix.afterSize);
     assert.equal(fix.afterSize.width, 390);
     await Promise.all([checkImage(fix.before, fix.beforeSize.width, fix.beforeSize.height),
       checkImage(fix.after, fix.afterSize.width, fix.afterSize.height)]);
     for (const lang of ["en", "hi", "te"]) {
-      const { scenes } = await json(`${path}/walkthrough?lang=${lang}`);
+      const { scenes } = await json(`${path}/walkthrough?lang=${lang}`, walkthroughSchema);
       assert.equal(scenes.length, findings.length + 2);
       assert.equal(scenes.find(({ findingId }) => findingId === finding.id)?.language, lang);
       assert.deepEqual(scenes.at(-1).comparison, fix);
@@ -103,8 +108,8 @@ async function audit(url) {
   return findings;
 }
 
-async function checkImage(path, width, height) {
-  const response = await fetch(base + path, { signal: AbortSignal.timeout(10000) });
+async function checkImage(path: string, width: number, height: number) {
+  const response = await handle(new Request(base + path));
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("content-type"), "image/jpeg");
   const jpeg = Buffer.from(await response.arrayBuffer());
@@ -128,10 +133,10 @@ async function run() {
       const findings = await audit(url);
       results.push(true);
       console.log(`PASS ${url} · ${findings.length} findings · ${Math.round(performance.now() - started)} ms`);
-      for (const item of findings) console.log(`  ${item.evidence.file ?? item.evidence.view} · ${item.title}`);
+      for (const item of findings) console.log(`  ${item.source === "repo" ? item.evidence.file : item.evidence.view} · ${item.title}`);
     } catch (error) {
       results.push(false);
-      console.error(`FAIL ${url} · ${error.message}`);
+      console.error(`FAIL ${url} · ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }
@@ -147,13 +152,15 @@ async function checkRepoFixture() {
     ["package.json", '{"scripts":{"start":"node absent.js"}}'],
   ]);
   const paths = new Set([...files.keys(), "docs/example(v2).pdf", "new/guide.txt"]);
-  const { findings, fixes } = checkRepository({ files, paths });
+  const { findings, fixes } = checkRepository({ files, paths, revision: "fixture" });
   assert.deepEqual(findings.map(({ title }) => title), [
     "Undeclared script: preview", "Broken README link", "Missing entry point for start",
   ]);
 
   const item = findings[1];
-  const patch = previewRepositoryFix(null, item, fixes.get(item.id));
+  const recipe = fixes.get(item.id);
+  assert.ok(recipe);
+  const patch = previewRepositoryFix(null, item, recipe);
   assert.equal(patch.verified, true);
   const directory = await mkdtemp(join(tmpdir(), "despecto-check-"));
   try {
@@ -165,12 +172,8 @@ async function checkRepoFixture() {
   console.log("PASS repository fixture · Markdown context, source evidence, and an applicable patch");
 }
 
-try {
-  await checkRepoFixture();
-  await Promise.all([run(), run()]);
-  const passed = results.filter(Boolean).length;
-  console.log(`${passed}/${repositories.length + websites.length} targets passed.`);
-  if (passed !== repositories.length + websites.length) process.exitCode = 1;
-} finally {
-  server.close();
-}
+await checkRepoFixture();
+await Promise.all([run(), run()]);
+const passed = results.filter(Boolean).length;
+console.log(`${passed}/${repositories.length + websites.length} targets passed.`);
+if (passed !== repositories.length + websites.length) process.exitCode = 1;

@@ -1,8 +1,11 @@
-import { InputError } from "../../shared/target.js";
-import { capturePage, withBrowser, withPage } from "../site-audit/browser.js";
-import { inspectPage } from "../site-audit/inspect.js";
+import type { Page } from "playwright";
+import type { AuditContext, WebsiteFixRecipe } from "../../shared/audit.ts";
+import type { Finding, ScreenshotFix, Target } from "../../shared/contracts.ts";
+import { InputError } from "../../shared/target.ts";
+import { capturePage, withBrowser, withPage } from "../site-audit/browser.ts";
+import { inspectPage } from "../site-audit/inspect.ts";
 
-export function previewWebsiteFix(target, item, recipe, context) {
+export function previewWebsiteFix(target: Target, item: Finding, recipe: WebsiteFixRecipe, context: AuditContext): Promise<ScreenshotFix> {
   const { view, rule, selector } = recipe;
   return withBrowser(target, (browser) => withPage(browser, target.url, view, async (page) => {
     const scan = await inspectPage(page, view, { rule, selector });
@@ -32,10 +35,11 @@ export function previewWebsiteFix(target, item, recipe, context) {
   }));
 }
 
-export async function applyPageFix(page, { property, selector, value }) {
-  const applied = await page.evaluate(({ property, selector, value }) => {
+export async function applyPageFix(page: Page, recipe: WebsiteFixRecipe) {
+  const applied = await page.evaluate((recipe) => {
+    const { property, selector } = recipe;
     if (property === "title") {
-      document.title = value;
+      document.title = "value" in recipe ? recipe.value : document.title;
       return true;
     }
     if (property === "viewport") {
@@ -45,14 +49,14 @@ export async function applyPageFix(page, { property, selector, value }) {
       document.head.append(meta);
       return true;
     }
-    const element = document.querySelector(selector);
+    const element = selector ? document.querySelector<HTMLElement>(selector) : null;
     if (!element) return false;
     if (property === "aria-label") {
-      element.setAttribute("aria-label", value);
+      if ("value" in recipe) element.setAttribute("aria-label", recipe.value);
     } else if (property === "image-fit") {
       element.style.setProperty("object-fit", "contain", "important");
     } else if (property === "contrast") {
-      element.style.setProperty("color", value, "important");
+      if ("value" in recipe) element.style.setProperty("color", recipe.value, "important");
     } else if (property === "width") {
       const room = document.documentElement.clientWidth - Math.max(0, element.getBoundingClientRect().left);
       element.style.setProperty("max-inline-size", `min(100%, ${Math.floor(room)}px)`, "important");
@@ -63,6 +67,6 @@ export async function applyPageFix(page, { property, selector, value }) {
       return false;
     }
     return true;
-  }, { property, selector, value });
+  }, recipe);
   if (!applied) throw new InputError("The element changed before the preview could be applied.");
 }

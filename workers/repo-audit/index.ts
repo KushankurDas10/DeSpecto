@@ -1,12 +1,16 @@
+import { z } from "zod";
+import type { Finding, Target } from "../../shared/contracts.ts";
+import type { AuditResult, Progress, RepoFixRecipe, RepoIndex, RepoRepair } from "../../shared/audit.ts";
+import { severitySchema } from "../../shared/contracts.ts";
 import { posix } from "node:path";
-import { askModel, modelConfigured } from "../../models/client.js";
-import { finding } from "../../shared/finding.js";
-import { readRepository, rootReadme } from "./git.js";
-import { readmeReferences } from "./readme.js";
+import { askModel, modelConfigured } from "../../models/llm.ts";
+import { finding } from "../../shared/finding.ts";
+import { readRepository, rootReadme } from "./git.ts";
+import { readmeReferences } from "./readme.ts";
 
 const maxFindings = 12;
 
-export async function auditRepository(target, progress, read = readRepository) {
+export async function auditRepository(target: Target, progress: Progress, read = readRepository): Promise<AuditResult> {
   progress(12, "Reading the default branch");
   const index = await read(target, progress);
   progress(65, "Checking README claims against the source");
@@ -33,25 +37,25 @@ export async function auditRepository(target, progress, read = readRepository) {
   return { findings, fixes, notes, revision: index.revision };
 }
 
-export function checkRepository(index) {
+export function checkRepository(index: RepoIndex) {
   const { files, paths } = index;
-  const findings = [];
-  const fixes = new Map();
+  const findings: Finding[] = [];
+  const fixes = new Map<string, RepoFixRecipe>();
 
-  function add(file, line, details, repair) {
+  function add(file: string, line: number, details: Pick<Finding, "title" | "type" | "severity" | "explanation"> & { confidence?: number }, repair?: RepoRepair) {
     if (findings.length >= maxFindings) return;
     const item = finding({
       source: "repo", ...details,
-      evidence: { file, lines: [line, line], excerpt: linesOf(files.get(file))[line - 1].slice(0, 1000) },
+      evidence: { file, lines: [line, line], excerpt: linesOf(files.get(file) ?? "")[line - 1].slice(0, 1000) },
     });
     findings.push(item);
     if (repair) fixes.set(item.id, { index, repair });
   }
 
-  let scripts;
+  let scripts: Record<string, unknown> | undefined;
   if (files.has("package.json")) {
     try {
-      scripts = scriptMap(files.get("package.json"));
+      scripts = scriptMap(files.get("package.json") ?? "");
     } catch {
       add("package.json", 1, {
         type: "bug", severity: "high", title: "Invalid package manifest",
@@ -62,12 +66,12 @@ export function checkRepository(index) {
 
   const readme = [...files.keys()].find((path) => rootReadme.test(path));
   if (readme) {
-    const references = readmeReferences(files.get(readme));
-    const manifests = new Map([["package.json", scripts]]);
+    const references = readmeReferences(files.get(readme) ?? "");
+    const manifests = new Map<string, Record<string, unknown> | null | undefined>([["package.json", scripts]]);
     for (const { line, name, manifest } of references.scripts) {
       if (!manifests.has(manifest)) {
         try {
-          manifests.set(manifest, files.has(manifest) ? scriptMap(files.get(manifest)) : null);
+          manifests.set(manifest, files.has(manifest) ? scriptMap(files.get(manifest) ?? "") : null);
         } catch {
           manifests.set(manifest, null);
         }
@@ -87,7 +91,7 @@ export function checkRepository(index) {
         locations.add(directory);
       }
     }
-    const byName = new Map();
+    const byName = new Map<string, string[]>();
     for (const { line, destination, column } of references.links) {
       if (findings.length >= maxFindings) break;
       if (!destination || /^(?:[a-z][a-z\d+.-]*:|[\/#])/i.test(destination)) continue;
@@ -95,7 +99,7 @@ export function checkRepository(index) {
       if (!path || path === ".." || path.startsWith("../") || locations.has(path)) continue;
       const name = posix.basename(path);
       if (!byName.has(name)) byName.set(name, [...paths].filter((candidate) => posix.basename(candidate) === name));
-      const candidates = byName.get(name);
+      const candidates = byName.get(name) ?? [];
       const repair = candidates.length === 1 && column !== null
         ? { file: readme, line, column, destination, replacement: candidates[0] }
         : undefined;
@@ -105,7 +109,7 @@ export function checkRepository(index) {
       }, repair);
     }
   } else if (typeof scripts?.start === "string" && ![...paths].some((path) => rootReadme.test(path))) {
-    add("package.json", scriptLine(files.get("package.json"), "start"), {
+    add("package.json", scriptLine(files.get("package.json") ?? "", "start"), {
       type: "missing_claim", severity: "low", title: "Missing project README",
       explanation: "The package declares a start command, but the repository has no root README to explain setup or how to run it.",
     });
@@ -117,7 +121,7 @@ export function checkRepository(index) {
       const entry = /^node\s+["']?((?:\.\/)?[\w./-]+\.[cm]?js)(?:["']?\s|["']?$)/.exec(command)?.[1];
       if (!entry || paths.has(posix.normalize(entry))) continue;
       if (scripts.build && /^(?:dist|build|out)\//.test(posix.normalize(entry))) continue;
-      add("package.json", scriptLine(files.get("package.json"), name), {
+      add("package.json", scriptLine(files.get("package.json") ?? "", name), {
         type: "bug", severity: "high", title: `Missing entry point for ${name}`,
         explanation: `The ${name} script runs ${entry}, which is absent from the revision. Check whether a build step generates it before invoking the script.`,
         confidence: 0.85,
@@ -128,18 +132,16 @@ export function checkRepository(index) {
   return { findings, fixes };
 }
 
-function scriptMap(contents) {
-  const manifest = JSON.parse(contents);
-  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) throw new Error("Invalid manifest.");
-  const scripts = manifest.scripts;
-  return scripts && typeof scripts === "object" && !Array.isArray(scripts) ? scripts : {};
+function scriptMap(contents: string) {
+  return z.object({ scripts: z.record(z.string(), z.unknown()).catch({}).optional() })
+    .parse(JSON.parse(contents)).scripts ?? {};
 }
 
-function scriptLine(contents, name) {
+function scriptLine(contents: string, name: string) {
   return Math.max(linesOf(contents).findIndex((line) => line.includes(JSON.stringify(name))) + 1, 1);
 }
 
-function resolveLink(destination) {
+function resolveLink(destination: string) {
   try {
     return posix.normalize(decodeURIComponent(destination.split(/[?#]/, 1)[0])).replace(/\/$/, "");
   } catch {
@@ -147,12 +149,12 @@ function resolveLink(destination) {
   }
 }
 
-function linesOf(contents) {
+function linesOf(contents: string) {
   return contents.split(/\r?\n/);
 }
 
-async function reviewSource({ files }, limit) {
-  const excerpts = new Map();
+async function reviewSource({ files }: RepoIndex, limit: number) {
+  const excerpts = new Map<string, string[]>();
   let remaining = 24000;
   for (const [path, contents] of files) {
     if (remaining < 200) break;
@@ -166,16 +168,19 @@ Return {"findings":[{"file":"indexed file","start":1,"end":1,"type":"bug, missin
 Return at most ${limit} findings. Use 1-based inclusive line numbers from the given arrays. For a README discrepancy, cite the contradicting source in the explanation. Only report missing documentation when the complete README is visible. Omit speculative findings and avoid proposing exploits.`,
     JSON.stringify(Object.fromEntries(excerpts)),
   );
-  if (!Array.isArray(data?.findings)) throw new Error("Model response is missing findings.");
-
-  return data.findings.slice(0, limit).flatMap((item) => {
-    if (!item || !["bug", "missing_claim", "misleading_claim"].includes(item.type)
-      || !["high", "medium", "low"].includes(item.severity)) return [];
+  const { findings } = z.object({ findings: z.array(z.unknown()) }).parse(data);
+  const review = z.object({
+    file: z.string(), start: z.number().int().positive(), end: z.number().int().positive(),
+    title: z.string().trim().min(1), explanation: z.string().trim().min(1),
+    type: z.enum(["bug", "missing_claim", "misleading_claim"]), severity: severitySchema,
+  });
+  return findings.slice(0, limit).flatMap((value) => {
+    const parsed = review.safeParse(value);
+    if (!parsed.success) return [];
+    const item = parsed.data;
     const lines = excerpts.get(item.file);
     const { start, end, title, explanation } = item;
-    if (!lines || !Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start
-      || end > lines.length || end - start > 8 || typeof title !== "string" || !title.trim()
-      || typeof explanation !== "string" || !explanation.trim()) return [];
+    if (!lines || end < start || end > lines.length || end - start > 8) return [];
 
     return [finding({
       source: "repo", type: item.type, severity: item.severity, confidence: 0.7,

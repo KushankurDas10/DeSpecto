@@ -1,9 +1,10 @@
-import { button, element, request, screenshot, showEvidence } from "./dom.js";
-import { createWalkthrough } from "./walkthrough.js";
+import { fixSchema, type CompletedJob, type Finding, type Report } from "../../shared/contracts.ts";
+import { button, element, errorMessage, request, screenshot, showEvidence } from "./dom.ts";
+import { createWalkthrough } from "./walkthrough.ts";
 
 const severities = ["high", "medium", "low"];
 
-export function showReport(container, job, onNewAudit) {
+export function showReport(container: HTMLElement, job: CompletedJob, onNewAudit: () => void) {
   const { target, result } = job;
   const heading = element("header", "report-heading");
   const text = element("div");
@@ -20,13 +21,13 @@ export function showReport(container, job, onNewAudit) {
   const tabs = element("nav", "report-tabs");
   tabs.setAttribute("aria-label", "Audit sections");
   const contents = element("div");
-  let disposeWalkthrough;
+  let disposeWalkthrough: (() => void) | undefined;
   const reportTab = button(`Findings (${result.findings.length})`, "", () => switchTo("findings"));
   const walkthroughTab = button("Walkthrough", "", () => switchTo("walkthrough"));
   tabs.append(reportTab, walkthroughTab);
   container.replaceChildren(heading, tabs, contents);
 
-  function switchTo(view) {
+  function switchTo(view: "findings" | "walkthrough") {
     const findingsVisible = view === "findings";
     if (reportTab.getAttribute("aria-pressed") === String(findingsVisible)) return;
     reportTab.setAttribute("aria-pressed", String(findingsVisible));
@@ -42,7 +43,7 @@ export function showReport(container, job, onNewAudit) {
   return () => disposeWalkthrough?.();
 }
 
-function renderFindings(container, job) {
+function renderFindings(container: HTMLElement, job: CompletedJob) {
   const findings = [...job.result.findings].sort((left, right) =>
     severities.indexOf(left.severity) - severities.indexOf(right.severity));
   const layout = element("div", "report-grid");
@@ -55,15 +56,15 @@ function renderFindings(container, job) {
   sidebar.append(heading, list);
   layout.append(sidebar, detail);
   container.replaceChildren(layout);
-  let selection = findings[0];
+  let selection: Finding | undefined = findings[0];
   let filter = "all";
   const labels = { all: "All", high: "High", medium: "Medium", low: "Low" };
-  const filterButtons = Object.keys(labels).map((name) => {
+  const filterButtons = (Object.keys(labels) as (keyof typeof labels)[]).map((name) => {
     const count = name === "all" ? findings.length : findings.filter((item) => item.severity === name).length;
     return [name, button(`${labels[name]} ${count}`, "", () => {
       filter = name;
       update();
-    })];
+    })] as const;
   });
   filters.append(...filterButtons.map(([, control]) => control));
   update();
@@ -71,7 +72,7 @@ function renderFindings(container, job) {
   function update() {
     for (const [name, control] of filterButtons) control.setAttribute("aria-pressed", String(name === filter));
     const visible = filter === "all" ? findings : findings.filter((item) => item.severity === filter);
-    if (!visible.includes(selection)) selection = visible[0];
+    if (!selection || !visible.includes(selection)) selection = visible[0];
     list.replaceChildren();
     if (!visible.length) list.append(element("p", "empty-text", findings.length ? "No findings at this severity." : "No issues found by the audit checks."));
     const rows = visible.map((item) => {
@@ -81,7 +82,7 @@ function renderFindings(container, job) {
       });
       row.append(element("span", `severity ${item.severity}`, item.severity), element("strong", "", item.title));
       list.append(row);
-      return [item, row];
+      return [item, row] as const;
     });
     showSelection();
 
@@ -92,7 +93,7 @@ function renderFindings(container, job) {
   }
 }
 
-function renderDetail(detail, job, item) {
+function renderDetail(detail: HTMLElement, job: CompletedJob, item?: Finding) {
   detail.replaceChildren();
   if (!item) {
     const captures = job.result.screenshots ?? [];
@@ -109,7 +110,7 @@ function renderDetail(detail, job, item) {
     select(captures[0]);
     return;
 
-    function select(capture) {
+    function select(capture: NonNullable<Report["screenshots"]>[number]) {
       for (const [index, control] of buttons.entries()) control.setAttribute("aria-pressed", String(captures[index] === capture));
       current.replaceChildren();
       showEvidence(current, { ...capture, screenshot: capture.url });
@@ -125,7 +126,7 @@ function renderDetail(detail, job, item) {
   if (item.fixAvailable) renderFix(detail, job.id, item);
 }
 
-function renderFix(detail, id, item) {
+function renderFix(detail: HTMLElement, id: string, item: Finding) {
   const section = element("section", "fix-section");
   const preview = element("div");
   const action = button("Show fix", "button", async () => {
@@ -137,10 +138,10 @@ function renderFix(detail, id, item) {
     action.disabled = true;
     action.textContent = "Preparing fix…";
     try {
-      item.fix = await request(`/api/audits/${id}/findings/${item.id}/fix`, { method: "POST" });
+      item.fix = await request(`/api/audits/${id}/findings/${item.id}/fix`, fixSchema, { method: "POST" });
       fillPreview();
     } catch (error) {
-      const message = element("p", "report-error", error.message);
+      const message = element("p", "report-error", errorMessage(error));
       message.setAttribute("role", "alert");
       preview.replaceChildren(message);
       action.textContent = "Retry fix";
@@ -154,6 +155,7 @@ function renderFix(detail, id, item) {
 
   function fillPreview() {
     const fix = item.fix;
+    if (!fix) return;
     const summary = element("p", "fix-summary");
     summary.append(element("strong", "", fix.verified ? "Recheck passed. " : "Recheck inconclusive. "), fix.summary);
     preview.replaceChildren(summary);
@@ -167,7 +169,7 @@ function renderFix(detail, id, item) {
       const actions = element("div", "fix-download");
       actions.append(download);
       preview.append(patch, actions);
-    } else {
+    } else if (item.source === "website") {
       const comparison = element("div", "comparison");
       for (const [label, url] of [["Before", fix.before], ["After", fix.after]]) {
         const card = element("figure");

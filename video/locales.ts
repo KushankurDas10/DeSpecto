@@ -1,25 +1,26 @@
+import type { Language, View } from "../shared/contracts.ts";
 export const locales = {
   en: {
     opening: "Audit overview",
-    count: (target, total) => `${target}. The audit found ${total} ${total === 1 ? "issue" : "issues"}.`,
-    file: (file, start, end) => `See ${file}, ${start === end ? `line ${start}` : `lines ${start} to ${end}`}.`,
-    view: (view) => `See the ${view} screenshot.`,
+    count: (target: string, total: number) => `${target}. The audit found ${total} ${total === 1 ? "issue" : "issues"}.`,
+    file: (file: string, start: number, end: number) => `See ${file}, ${start === end ? `line ${start}` : `lines ${start} to ${end}`}.`,
+    view: (view: View) => `See the ${view} screenshot.`,
   },
   hi: {
     opening: "ऑडिट का सारांश",
-    count: (target, total) => `${target} के ऑडिट में ${total} समस्याएँ मिलीं।`,
-    file: (file, start, end) => `${file} में ${start === end ? `पंक्ति ${start}` : `पंक्तियाँ ${start} से ${end}`} देखें।`,
-    view: (view) => `${view === "mobile" ? "मोबाइल" : "डेस्कटॉप"} स्क्रीनशॉट देखें।`,
+    count: (target: string, total: number) => `${target} के ऑडिट में ${total} समस्याएँ मिलीं।`,
+    file: (file: string, start: number, end: number) => `${file} में ${start === end ? `पंक्ति ${start}` : `पंक्तियाँ ${start} से ${end}`} देखें।`,
+    view: (view: View) => `${view === "mobile" ? "मोबाइल" : "डेस्कटॉप"} स्क्रीनशॉट देखें।`,
   },
   te: {
     opening: "ఆడిట్ సారాంశం",
-    count: (target, total) => `${target} ఆడిట్‌లో ${total} సమస్యలు కనిపించాయి.`,
-    file: (file, start, end) => `${file}లో ${start === end ? `${start}వ పంక్తిని` : `${start} నుంచి ${end} వరకు పంక్తులను`} చూడండి.`,
-    view: (view) => `${view === "mobile" ? "మొబైల్" : "డెస్క్‌టాప్"} స్క్రీన్‌షాట్ చూడండి.`,
+    count: (target: string, total: number) => `${target} ఆడిట్‌లో ${total} సమస్యలు కనిపించాయి.`,
+    file: (file: string, start: number, end: number) => `${file}లో ${start === end ? `${start}వ పంక్తిని` : `${start} నుంచి ${end} వరకు పంక్తులను`} చూడండి.`,
+    view: (view: View) => `${view === "mobile" ? "మొబైల్" : "డెస్క్‌టాప్"} స్క్రీన్‌షాట్ చూడండి.`,
   },
 };
 
-const translations = {
+const translations: Record<string, Record<"hi" | "te", [string, string]>> = {
   "Low text contrast": {
     hi: ["टेक्स्ट का कंट्रास्ट कम है", "टेक्स्ट और उसकी पृष्ठभूमि के रंगों में पर्याप्त अंतर नहीं है, जिससे उसे पढ़ना मुश्किल हो सकता है।"],
     te: ["వచనానికి తగిన కాంట్రాస్ట్ లేదు", "వచనం, నేపథ్యం రంగుల మధ్య తేడా తక్కువగా ఉండటంతో చదవడం కష్టంగా ఉండవచ్చు."],
@@ -58,7 +59,7 @@ const translations = {
   },
 };
 
-export function builtInTranslation(title, language) {
+export function builtInTranslation(title: string, language: "hi" | "te"): [string, string] | null {
   const known = Object.hasOwn(translations, title) && translations[title][language];
   if (known) return known;
 

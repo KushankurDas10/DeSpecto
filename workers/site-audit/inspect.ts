@@ -1,6 +1,13 @@
-import { maxCaptureHeight } from "./browser.js";
+import type { Page } from "playwright";
+import type { Box, Finding, View } from "../../shared/contracts.ts";
+import type { SiteRule, WebsiteChange } from "../../shared/audit.ts";
 
-export function inspectPage(page, view, filter) {
+type IssueDetails = Pick<Finding, "type" | "severity" | "title" | "explanation">;
+type Filter = { rule: SiteRule; selector?: string | null; targetSelector?: string | null };
+type Issue = IssueDetails & { rule: SiteRule; selector: string | null; box: Box | null; repair?: WebsiteChange };
+import { maxCaptureHeight } from "./browser.ts";
+
+export function inspectPage(page: Page, view: View, filter?: Filter) {
   return page.evaluate(({ limit, maxHeight, view, filter }) => {
     const root = document.documentElement;
     const width = root.clientWidth;
@@ -8,7 +15,7 @@ export function inspectPage(page, view, filter) {
     const height = Math.min(fullHeight, maxHeight);
     const viewportHeight = window.innerHeight;
 
-    function box(element) {
+    function box(element: Element): Box | null {
       const rect = element.getBoundingClientRect();
       const style = getComputedStyle(element);
       if (style.visibility !== "visible" || Number(style.opacity) === 0) return null;
@@ -19,9 +26,9 @@ export function inspectPage(page, view, filter) {
       return w > 0 && h > 0 ? { x, y, w, h } : null;
     }
 
-    function selector(element) {
-      const parts = [];
-      for (let node = element; node; node = node.parentElement) {
+    function selector(element: Element) {
+      const parts: string[] = [];
+      for (let node: Element | null = element; node; node = node.parentElement) {
         if (node.id && document.querySelectorAll(`#${CSS.escape(node.id)}`).length === 1) {
           parts.unshift(`#${CSS.escape(node.id)}`);
           break;
@@ -35,33 +42,33 @@ export function inspectPage(page, view, filter) {
       return parts.join(" > ");
     }
 
-    function named(element) {
+    function named(element: Element) {
       const references = element.getAttribute("aria-labelledby")?.trim().split(/\s+/) ?? [];
-      return Boolean(element.getAttribute("aria-label")?.trim() || element.title?.trim()
-        || references.some((id) => document.getElementById(id)?.textContent.trim())
-        || Array.from(element.labels ?? []).some((label) => label.textContent.trim()));
+      return Boolean(element.getAttribute("aria-label")?.trim() || element.getAttribute("title")?.trim()
+        || references.some((id) => document.getElementById(id)?.textContent?.trim())
+        || ("labels" in element && Array.from((element as HTMLInputElement).labels ?? []).some((label) => label.textContent?.trim())));
     }
 
-    function cropped(image) {
-      if (image?.localName !== "img" || !image.naturalWidth || !image.clientHeight
+    function cropped(image: Element | null) {
+      if (!(image instanceof HTMLImageElement) || !image.naturalWidth || !image.clientHeight
         || getComputedStyle(image).objectFit !== "cover") return false;
       const ratio = image.naturalWidth * image.clientHeight / (image.naturalHeight * image.clientWidth);
       return Number.isFinite(ratio) && Math.abs(Math.log(ratio)) > .12;
     }
 
-    const issues = [];
-    function add(element, rule, details, repair) {
+    const issues: Issue[] = [];
+    function add(element: Element | null | undefined, rule: SiteRule, details: IssueDetails, repair?: WebsiteChange | false | "") {
       if (issues.length >= limit || (filter && rule !== filter.rule)) return;
       const bounds = element && box(element);
       if (element && !bounds) return;
       const location = element && selector(element);
       if (filter?.selector !== undefined && filter.selector !== location) return;
-      issues.push({ rule, ...details, selector: location, box: bounds, repair });
+      issues.push({ rule, ...details, selector: location ?? null, box: bounds ?? null, repair: repair || undefined });
     }
 
     const heading = [...document.querySelectorAll("h1")].find((element) => box(element));
     if (!document.title.trim()) {
-      const suggestion = heading?.textContent.trim().replace(/\s+/g, " ").slice(0, 100);
+      const suggestion = heading?.textContent?.trim().replace(/\s+/g, " ").slice(0, 100);
       add(heading, "title", {
         type: "accessibility", severity: "medium", title: "Missing page title",
         explanation: "The document has no title for browser tabs, bookmarks, or assistive technology.",
@@ -75,7 +82,7 @@ export function inspectPage(page, view, filter) {
       }, { property: "viewport" });
     }
     const overflow = Math.max(root.scrollWidth, document.body?.scrollWidth ?? 0) - root.clientWidth;
-    if (overflow > 12 && !["hidden", "clip"].includes(getComputedStyle(document.scrollingElement).overflowX)
+    if (overflow > 12 && !["hidden", "clip"].includes(getComputedStyle(document.scrollingElement ?? root).overflowX)
       && !["hidden", "clip"].includes(getComputedStyle(document.body).overflowX)) {
       const elements = Array.from(document.querySelectorAll("body *")).slice(0, 3500);
       // Prefer the widest overflowing element so a patch addresses the layout rather than hiding the scroll.
@@ -112,17 +119,18 @@ export function inspectPage(page, view, filter) {
       const sample = document.createElement("canvas");
       sample.width = sample.height = 1;
       const context = sample.getContext("2d", { willReadFrequently: true });
-      const colors = new Map();
-      const color = (value) => {
+      if (!context) throw new Error("Could not initialize the color sampler.");
+      const colors = new Map<string, Uint8ClampedArray>();
+      const color = (value: string): Uint8ClampedArray => {
         if (!colors.has(value)) {
           context.clearRect(0, 0, 1, 1);
           context.fillStyle = value;
           context.fillRect(0, 0, 1, 1);
           colors.set(value, context.getImageData(0, 0, 1, 1).data);
         }
-        return colors.get(value);
+        return colors.get(value)!;
       };
-      const luminance = (rgb) => [.2126, .7152, .0722].reduce((sum, weight, index) => {
+      const luminance = (rgb: Uint8ClampedArray) => [.2126, .7152, .0722].reduce((sum, weight, index) => {
         const level = rgb[index] / 255;
         return sum + weight * (level <= .04045 ? level / 12.92 : ((level + .055) / 1.055) ** 2.4);
       }, 0);
@@ -131,9 +139,9 @@ export function inspectPage(page, view, filter) {
       let found = 0;
       for (const element of candidates) {
         if (!element || !box(element) || element.closest('[disabled], [aria-hidden="true"]')
-          || ![...element.childNodes].some((node) => node.nodeType === 3 && node.textContent.trim().length > 2)) continue;
-        let background;
-        for (let ancestor = element; ancestor; ancestor = ancestor.parentElement) {
+          || ![...element.childNodes].some((node) => node.nodeType === 3 && (node.textContent?.trim().length ?? 0) > 2)) continue;
+        let background: Uint8ClampedArray | undefined;
+        for (let ancestor: Element | null = element; ancestor; ancestor = ancestor.parentElement) {
           const style = getComputedStyle(ancestor);
           if (style.backgroundImage !== "none" || style.mixBlendMode !== "normal" || Number(style.opacity) < 1) break;
           const rgb = color(style.backgroundColor);
@@ -160,8 +168,10 @@ export function inspectPage(page, view, filter) {
     }
 
     if (filter?.rule === "image-crop") {
-      const image = document.querySelector(filter.selector);
-      if (cropped(image)) add(image, "image-crop", {}, { property: "image-fit" });
+      const image = filter.selector ? document.querySelector(filter.selector) : null;
+      if (cropped(image)) add(image, "image-crop", {
+        type: "visual_issue", severity: "medium", title: "Cropped image", explanation: "The image is cropped to fit its frame.",
+      }, { property: "image-fit" });
     }
 
     const regions = Array.from(document.querySelectorAll("main, header, nav, section, article, footer, h1, button, img"))

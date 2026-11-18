@@ -1,9 +1,12 @@
-import { InputError } from "../../shared/target.js";
-import { checkRepository } from "../repo-audit/index.js";
+import type { RepoFixRecipe } from "../../shared/audit.ts";
+import type { DiffFix, Finding, Target } from "../../shared/contracts.ts";
+import { InputError } from "../../shared/target.ts";
+import { checkRepository } from "../repo-audit/index.ts";
 
-export function previewRepositoryFix(_target, item, { index, repair }) {
+export function previewRepositoryFix(_target: Target | null, item: Finding, { index, repair }: RepoFixRecipe): DiffFix {
   const { file, line, column, destination, replacement } = repair;
   const source = index.files.get(file);
+  if (source === undefined) throw new InputError("The original file could not be located.");
   const lines = source.split("\n");
   const terminated = source.endsWith("\n");
   if (terminated) lines.pop();
@@ -41,7 +44,7 @@ export function previewRepositoryFix(_target, item, { index, repair }) {
     summary: verified ? "The replacement link resolves in the audited revision." : "The original link still needs review.",
   };
 
-  function append(text, index) {
+  function append(text: string, index: number) {
     patch.push(text);
     if (!terminated && index === lines.length - 1) patch.push("\\ No newline at end of file");
   }

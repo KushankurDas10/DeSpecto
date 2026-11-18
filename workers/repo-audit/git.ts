@@ -1,9 +1,12 @@
+import type { ExecFileOptionsWithStringEncoding } from "node:child_process";
+import type { Progress, RepoIndex } from "../../shared/audit.ts";
+import type { Target } from "../../shared/contracts.ts";
 import { execFile } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { InputError } from "../../shared/target.js";
+import { InputError } from "../../shared/target.ts";
 
 const run = promisify(execFile);
 const maxFileBytes = 96 * 1024;
@@ -12,7 +15,7 @@ const textFile = /(?:\.(?:md|mdx|rst|txt|json|toml|ini|ya?ml|xml|html?|css|scss|
 const excluded = /(?:^|\/)(?:node_modules|vendor|dist|build|coverage|\.git)(?:\/|$)|(?:^|\/)(?:package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$/i;
 export const rootReadme = /^readme(?:\.(?:md|mdx|rst|txt))?$/i;
 
-function git(directory, args, limits = {}) {
+function git(directory: string, args: string[], limits: Partial<ExecFileOptionsWithStringEncoding> = {}) {
   return run("git", ["-c", "protocol.allow=never", "-c", "protocol.https.allow=always",
     "-c", "http.followRedirects=false", ...args], {
     cwd: directory,
@@ -21,22 +24,24 @@ function git(directory, args, limits = {}) {
     windowsHide: true,
     env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null" },
     ...limits,
+    encoding: "utf8",
   });
 }
 
-export async function readRepository(target, progress) {
+export async function readRepository(target: Target, progress: Progress): Promise<RepoIndex> {
   const directory = await mkdtemp(join(tmpdir(), "despecto-"));
   try {
     try {
       await git(directory, ["clone", "--quiet", "--depth=1", "--no-checkout", "--filter=blob:limit=100k", "--",
         `${target.url}.git`, "repo"], { timeout: 45000 });
     } catch (error) {
-      if (error.code === "ENOENT") throw new InputError("Install Git to audit repositories.");
-      if (error.killed) throw new InputError("GitHub took too long to send the repository. Try again or audit a smaller repository.");
-      if (/could not resolve host|failed to connect|timed out/i.test(error.stderr ?? "")) {
+      const failure = error as NodeJS.ErrnoException & { killed?: boolean; stderr?: string };
+      if (failure.code === "ENOENT") throw new InputError("Install Git to audit repositories.");
+      if (failure.killed) throw new InputError("GitHub took too long to send the repository. Try again or audit a smaller repository.");
+      if (/could not resolve host|failed to connect|timed out/i.test(failure.stderr ?? "")) {
         throw new InputError("The audit server could not reach GitHub. Check your internet connection and try again.");
       }
-      if (/repository not found|authentication failed|could not read username|terminal prompts disabled|(?:http|error:) (?:401|403|404)/i.test(error.stderr ?? "")) {
+      if (/repository not found|authentication failed|could not read username|terminal prompts disabled|(?:http|error:) (?:401|403|404)/i.test(failure.stderr ?? "")) {
         throw new InputError("GitHub did not make this repository available without signing in. Check the URL and make sure the repository is public.");
       }
       throw new InputError("Could not read the repository. Check that it is public and accessible.");
@@ -46,12 +51,12 @@ export async function readRepository(target, progress) {
     return await readTree(join(directory, "repo"));
   } finally {
     await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch((error) => {
-      console.warn(`Could not clean up the temporary Git checkout (${error.code}).`);
+      console.warn("Could not clean up the temporary Git checkout.", error);
     });
   }
 }
 
-async function readTree(directory) {
+async function readTree(directory: string): Promise<RepoIndex> {
   const [{ stdout: tree }, { stdout: revision }] = await Promise.all([
     git(directory, ["ls-tree", "-r", "-z", "HEAD"]),
     git(directory, ["rev-parse", "HEAD"]),
@@ -64,7 +69,7 @@ async function readTree(directory) {
     && (textFile.test(path) || rootReadme.test(path)) && !excluded.test(path));
   candidates.sort((left, right) => priority(left.path) - priority(right.path));
 
-  const files = new Map();
+  const files = new Map<string, string>();
   let remaining = maxIndexBytes;
   // Read objects directly so symlinks, submodules, and repository hooks are never materialized.
   for (let start = 0; start < Math.min(candidates.length, 100) && remaining > 0; start += 8) {
@@ -72,9 +77,9 @@ async function readTree(directory) {
     const blobs = await Promise.all(batch.map(async ({ path, hash }) => {
       try {
         const { stdout } = await git(directory, ["cat-file", "blob", hash], { maxBuffer: maxFileBytes, timeout: 3500 });
-        return [path, stdout];
+        return [path, stdout] as const;
       } catch {
-        return [path, null];
+        return [path, null] as const;
       }
     }));
     for (const [path, contents] of blobs) {
@@ -86,7 +91,7 @@ async function readTree(directory) {
   return { revision: revision.trim(), paths: new Set(entries.map(({ path }) => path)), files };
 }
 
-function priority(path) {
+function priority(path: string) {
   if (rootReadme.test(path)) return 0;
   if (path === "package.json" || path.startsWith(".github/workflows/")) return 1;
   if (path.endsWith("/package.json")) return 2;

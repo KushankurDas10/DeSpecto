@@ -1,6 +1,7 @@
-import { button, element, request } from "./dom.js";
+import { exportStateSchema, type CompletedJob, type Language } from "../../shared/contracts.ts";
+import { button, element, errorMessage, request } from "./dom.ts";
 
-export function showExport(container, job, language, signal) {
+export function showExport(container: HTMLElement, job: CompletedJob, language: Language, signal: AbortSignal) {
   const path = `/api/audits/${job.id}/export`;
   const query = `?lang=${language}`;
   const status = element("p", "export-status");
@@ -18,14 +19,14 @@ export function showExport(container, job, language, signal) {
   container.hidden = false;
   void follow("GET");
 
-  async function follow(method) {
+  async function follow(method: "GET" | "POST") {
     try {
-      let state = await request(path + query, { method, signal });
+      let state = await request(path + query, exportStateSchema, { method, signal });
       while (!signal.aborted && state.status === "rendering") {
         action.textContent = state.total ? `Rendering ${state.completed} of ${state.total} scenes` : "Preparing video…";
         action.disabled = true;
         await new Promise((resolve) => setTimeout(resolve, 700));
-        if (!signal.aborted) state = await request(path + query, { signal });
+        if (!signal.aborted) state = await request(path + query, exportStateSchema, { signal });
       }
       if (signal.aborted) return;
       if (state.status === "complete") {
@@ -35,10 +36,10 @@ export function showExport(container, job, language, signal) {
           : state.narrated < state.total ? `Narration is available for ${state.narrated} of ${state.total} scenes.`
             : "Video includes captions and narration.";
       } else {
-        status.textContent = state.error ?? "";
+        status.textContent = state.status === "failed" ? state.error : "";
       }
     } catch (error) {
-      if (!signal.aborted) status.textContent = error.message;
+      if (!signal.aborted) status.textContent = errorMessage(error);
     } finally {
       if (!signal.aborted) {
         action.textContent = "Export MP4";

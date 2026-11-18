@@ -1,6 +1,8 @@
+import type { Browser, Page } from "playwright";
+import type { Size, Target, View } from "../../shared/contracts.ts";
 import { chromium } from "playwright";
-import { InputError } from "../../shared/target.js";
-import { publicAddress, startAuditProxy } from "./network.js";
+import { InputError } from "../../shared/target.ts";
+import { publicAddress, startAuditProxy } from "./network.ts";
 
 export const viewports = Object.freeze({
   desktop: { viewport: { width: 1440, height: 960 } },
@@ -8,7 +10,7 @@ export const viewports = Object.freeze({
 });
 export const maxCaptureHeight = 12000;
 
-export async function withBrowser(target, inspect) {
+export async function withBrowser<T>(target: Target, inspect: (browser: Browser) => Promise<T>): Promise<T> {
   try {
     await publicAddress(new URL(target.url).hostname);
   } catch (error) {
@@ -17,8 +19,8 @@ export async function withBrowser(target, inspect) {
   }
 
   const proxy = await startAuditProxy();
-  let browser;
-  let deadline;
+  let browser: Browser | undefined;
+  let deadline: ReturnType<typeof setTimeout> | undefined;
   try {
     try {
       browser = await chromium.launch({
@@ -33,12 +35,12 @@ export async function withBrowser(target, inspect) {
         ],
       });
     } catch (error) {
-      if (error.message.includes("Executable doesn't exist")) {
+      if (error instanceof Error && error.message.includes("Executable doesn't exist")) {
         throw new InputError("Install Chromium with npx playwright install chromium.");
       }
       throw error;
     }
-    const timeout = new Promise((_, reject) => {
+    const timeout = new Promise<never>((_, reject) => {
       deadline = setTimeout(() => reject(new InputError("The website audit browser timed out.")), 95000);
     });
     return await Promise.race([inspect(browser), timeout]);
@@ -52,7 +54,7 @@ export async function withBrowser(target, inspect) {
   }
 }
 
-export async function withPage(browser, url, view, inspect) {
+export async function withPage<T>(browser: Browser, url: string, view: View, inspect: (page: Page) => Promise<T>): Promise<T> {
   const context = await browser.newContext({
     ...viewports[view], serviceWorkers: "block", deviceScaleFactor: 1, acceptDownloads: false,
   });
@@ -83,7 +85,7 @@ export async function withPage(browser, url, view, inspect) {
   }
 }
 
-async function settlePage(page) {
+async function settlePage(page: Page) {
   // Scroll through the capture area to trigger lazy images and viewport-based entrances.
   await page.waitForTimeout(700);
   const offsets = await page.evaluate((limit) => {
@@ -107,7 +109,7 @@ async function settlePage(page) {
   await page.waitForTimeout(650);
 }
 
-export function capturePage(page, { width, height }) {
+export function capturePage(page: Page, { width, height }: Size) {
   return page.screenshot({
     type: "jpeg", quality: 80, fullPage: true, clip: { x: 0, y: 0, width, height },
     scale: "css", caret: "hide", timeout: 10000,

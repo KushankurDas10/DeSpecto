@@ -1,12 +1,14 @@
+import type { Target } from "./contracts.ts";
+
 export class InputError extends Error {}
 
-export function parseTarget(input) {
+export function parseTarget(input: unknown): Target {
   if (typeof input !== "string" || !input.trim() || input.length > 2048) {
     throw new InputError("Enter a GitHub repository or website URL.");
   }
 
   const trimmed = input.trim();
-  let url;
+  let url: URL;
   try {
     url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`);
   } catch {

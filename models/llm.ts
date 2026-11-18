@@ -1,4 +1,13 @@
-function modelFor(vision) {
+import process from "node:process";
+import { z } from "zod";
+
+type ImagePart = { type: "image_url"; image_url: { url: string } };
+type TextPart = { type: "text"; text: string };
+const completion = z.object({
+  choices: z.array(z.object({ message: z.object({ content: z.string() }) })).nonempty(),
+});
+
+function modelFor(vision: boolean) {
   return vision ? process.env.AI_VISION_MODEL : process.env.AI_MODEL;
 }
 
@@ -6,10 +15,10 @@ export function modelConfigured(vision = false) {
   return Boolean(modelFor(vision) && process.env.AI_BASE_URL);
 }
 
-export async function askModel(instruction, contents, { vision = false } = {}) {
-  if (!modelConfigured(vision)) return null;
+export async function askModel(instruction: string, contents: string | (ImagePart | TextPart)[], { vision = false } = {}): Promise<unknown> {
   const model = modelFor(vision);
   const base = process.env.AI_BASE_URL;
+  if (!model || !base) return null;
   const openRouter = new URL(base).hostname === "openrouter.ai";
 
   const response = await fetch(`${base.replace(/\/+$/, "")}/chat/completions`, {
@@ -36,9 +45,9 @@ export async function askModel(instruction, contents, { vision = false } = {}) {
     signal: AbortSignal.timeout(35000),
   });
   if (!response.ok) throw new Error(`Model provider returned HTTP ${response.status}.`);
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-  if (typeof content !== "string") throw new Error("Model provider returned no message.");
+  const parsed = completion.safeParse(await response.json());
+  if (!parsed.success) throw new Error("Model provider returned no message.");
+  const content = parsed.data.choices[0].message.content;
   const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(content.trim());
   return JSON.parse(fenced?.[1] ?? content);
 }

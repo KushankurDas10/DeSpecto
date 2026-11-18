@@ -1,48 +1,30 @@
-const maxAudioBytes = 2 * 1024 * 1024;
-const maxCacheBytes = 24 * 1024 * 1024;
-const cache = new Map();
-const pending = new Map();
-let cacheBytes = 0;
+import process from "node:process";
+import { z } from "zod";
+import type { Scene } from "../shared/contracts.ts";
 
-const geminiModel = "gemini-3.8-flash-tts";
+export interface Narration {
+  bytes: Buffer;
+  contentType: "audio/wav" | "audio/mpeg";
+}
+const maxAudioBytes = 2 * 1024 * 1024;
+
+const speechResponse = z.object({
+  candidates: z.array(z.object({ content: z.object({ parts: z.array(z.object({
+    inlineData: z.object({ mimeType: z.string(), data: z.base64() }).optional(),
+  })) }).optional() })).optional(),
+});
 
 export function speechConfigured() {
   const { GEMINI_API_KEY, TTS_BASE_URL, TTS_MODEL } = process.env;
   return Boolean(GEMINI_API_KEY?.trim() || (TTS_BASE_URL && TTS_MODEL));
 }
 
-export async function narrationFor(scene) {
-  if (!speechConfigured()) return null;
-  const saved = cache.get(scene);
-  if (saved) {
-    cache.delete(scene);
-    cache.set(scene, saved);
-    return saved;
-  }
-  if (pending.has(scene)) return pending.get(scene);
-  if (pending.size >= 2) throw new Error("Speech is busy. Try again shortly.");
-
-  const request = synthesize(scene).then((audio) => {
-    if (audio) {
-      while (cacheBytes + audio.bytes.byteLength > maxCacheBytes) {
-        const oldest = cache.keys().next().value;
-        cacheBytes -= cache.get(oldest).bytes.byteLength;
-        cache.delete(oldest);
-      }
-      cache.set(scene, audio);
-      cacheBytes += audio.bytes.byteLength;
-    }
-    return audio;
-  }).finally(() => pending.delete(scene));
-  pending.set(scene, request);
-  return request;
-}
-
-export async function synthesize({ language, caption }) {
+export async function synthesize({ language, caption }: Pick<Scene, "language" | "caption">): Promise<Narration | null> {
   if (!speechConfigured()) return null;
   const key = process.env.GEMINI_API_KEY?.trim();
   const voice = process.env[`TTS_VOICE_${language.toUpperCase()}`];
   const request = key ? geminiRequest(caption, voice, key) : compatibleRequest(caption, voice);
+  if (!request) return null;
 
   const response = await fetch(request.url, {
     ...request.options,
@@ -62,8 +44,8 @@ export async function synthesize({ language, caption }) {
   return key ? decodeGeminiAudio(JSON.parse(bytes.toString("utf8"))) : { bytes, contentType: "audio/mpeg" };
 }
 
-async function readAudioResponse(body, limit) {
-  const chunks = [];
+async function readAudioResponse(body: ReadableStream<Uint8Array>, limit: number) {
+  const chunks: Uint8Array[] = [];
   let size = 0;
   for await (const chunk of body) {
     size += chunk.byteLength;
@@ -73,9 +55,10 @@ async function readAudioResponse(body, limit) {
   return Buffer.concat(chunks);
 }
 
-function geminiRequest(caption, voice, key) {
+function geminiRequest(caption: string, voice: string | undefined, key: string) {
+  const model = process.env.GEMINI_TTS_MODEL ?? "gemini-3.8-flash-tts";
   return {
-    url: `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`,
+    url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     options: {
       headers: {
         "content-type": "application/json",
@@ -92,8 +75,9 @@ function geminiRequest(caption, voice, key) {
   };
 }
 
-function decodeGeminiAudio(result) {
-  const parts = result.candidates?.[0]?.content?.parts ?? [];
+function decodeGeminiAudio(result: unknown): Narration {
+  const parsed = speechResponse.safeParse(result);
+  const parts = parsed.success ? parsed.data.candidates?.[0]?.content?.parts ?? [] : [];
   const audio = parts.find(({ inlineData }) => inlineData?.mimeType?.startsWith("audio/"))?.inlineData;
   if (!audio?.data) throw new Error("Gemini did not return narration audio.");
   const bytes = Buffer.from(audio.data, "base64");
@@ -123,8 +107,9 @@ function decodeGeminiAudio(result) {
   return { bytes: Buffer.concat([header, bytes]), contentType: "audio/wav" };
 }
 
-function compatibleRequest(caption, voice) {
+function compatibleRequest(caption: string, voice?: string) {
   const { TTS_BASE_URL, TTS_MODEL, TTS_API_KEY, TTS_VOICE } = process.env;
+  if (!TTS_BASE_URL || !TTS_MODEL) return null;
   return {
     url: `${TTS_BASE_URL.replace(/\/+$/, "")}/audio/speech`,
     options: {

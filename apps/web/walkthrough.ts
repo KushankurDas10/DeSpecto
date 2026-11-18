@@ -1,10 +1,19 @@
-import { button, element, request, showSceneEvidence } from "./dom.js";
-import { showExport } from "./export.js";
+import { fixSchema, languageSchema, walkthroughSchema, type CompletedJob, type Language, type Scene, type Walkthrough } from "../../shared/contracts.ts";
+
+interface Playback {
+  scene: Scene;
+  started: number;
+  elapsed: number;
+  audio?: HTMLAudioElement;
+  utterance?: SpeechSynthesisUtterance;
+}
+import { button, element, errorMessage, request, showSceneEvidence } from "./dom.ts";
+import { showExport } from "./export.ts";
 
 const voices = { en: "en-US", hi: "hi-IN", te: "te-IN" };
-let selectedLanguage = "en";
+let selectedLanguage: Language = "en";
 
-export function createWalkthrough(container, job) {
+export function createWalkthrough(container: HTMLElement, job: CompletedJob) {
   const player = element("section", "card player");
   const settings = element("div", "player-settings");
   const languageLabel = element("label", "language-control", "Narration");
@@ -36,19 +45,19 @@ export function createWalkthrough(container, job) {
   player.append(settings, stage, controls, status, exports);
   container.replaceChildren(player);
 
-  let controller;
-  let script;
-  let playback;
-  let frame;
+  let controller = new AbortController();
+  let script: Walkthrough | undefined;
+  let playback: Playback | undefined;
+  let frame = 0;
   let index = 0;
   let playing = false;
   let finished = false;
-  let seekScene = () => {};
+  let seekScene: (time: number) => void = () => {};
   let sceneTime = 1;
   const resize = () => seekScene(sceneTime);
   window.addEventListener("resize", resize);
   language.addEventListener("change", () => {
-    selectedLanguage = language.value;
+    selectedLanguage = languageSchema.parse(language.value);
     void load();
   });
   void load();
@@ -59,7 +68,7 @@ export function createWalkthrough(container, job) {
     window.removeEventListener("resize", resize);
   };
 
-  async function load(fixId) {
+  async function load(fixId?: string) {
     controller?.abort();
     controller = new AbortController();
     const { signal } = controller;
@@ -70,20 +79,20 @@ export function createWalkthrough(container, job) {
     setSceneControls();
     stage.replaceChildren(element("p", "", "Preparing walkthrough…"));
     try {
-      const result = await request(`/api/audits/${job.id}/walkthrough?lang=${language.value}`, { signal });
+      const result = await request(`/api/audits/${job.id}/walkthrough?lang=${language.value}`, walkthroughSchema, { signal });
       if (signal.aborted) return;
       script = result;
       const preview = fixId ? result.scenes.findIndex((scene) => scene.findingId === fixId && scene.comparison) : -1;
       move(Math.max(0, preview), false);
-      if (result.exportAvailable) showExport(exports, job, language.value, signal);
+      if (result.exportAvailable) showExport(exports, job, selectedLanguage, signal);
     } catch (error) {
       if (!signal.aborted) {
-        stage.replaceChildren(element("p", "", error.message), button("Retry", "button", load));
+        stage.replaceChildren(element("p", "", errorMessage(error)), button("Retry", "button", () => void load()));
       }
     }
   }
 
-  function move(position, autoplay) {
+  function move(position: number, autoplay: boolean) {
     if (!script || position < 0 || position >= script.scenes.length) return;
     stop();
     index = position;
@@ -106,9 +115,9 @@ export function createWalkthrough(container, job) {
     if (autoplay) void start();
   }
 
-  function addFixControl(scene) {
+  function addFixControl(scene: Scene) {
     const actions = element("div", "scene-actions");
-    const preview = script.scenes.findIndex((candidate) => candidate.findingId === scene.findingId && candidate.comparison);
+    const preview = script?.scenes.findIndex((candidate) => candidate.findingId === scene.findingId && candidate.comparison) ?? -1;
     const action = button(preview >= 0 ? "View fix" : "Show fix", "button", async () => {
       if (preview >= 0) {
         move(preview, false);
@@ -120,13 +129,13 @@ export function createWalkthrough(container, job) {
       action.disabled = true;
       action.textContent = "Preparing fix…";
       try {
-        const fix = await request(`/api/audits/${job.id}/findings/${scene.findingId}/fix`, { method: "POST", signal });
+        const fix = await request(`/api/audits/${job.id}/findings/${scene.findingId}/fix`, fixSchema, { method: "POST", signal });
         const item = job.result.findings.find(({ id }) => id === scene.findingId);
         if (item) item.fix = fix;
         if (!signal.aborted) void load(scene.findingId);
       } catch (error) {
         if (signal.aborted) return;
-        setStatus(error.message);
+        setStatus(errorMessage(error));
         action.disabled = false;
         action.textContent = "Retry fix";
       }
@@ -144,7 +153,7 @@ export function createWalkthrough(container, job) {
   }
 
   function toggle() {
-    if (playing) {
+    if (playing && playback) {
       playing = false;
       playback.elapsed += performance.now() - playback.started;
       playback.audio?.pause();
@@ -161,8 +170,9 @@ export function createWalkthrough(container, job) {
   }
 
   async function start() {
+    if (!script) return;
     const scene = script.scenes[index];
-    const current = { scene, started: performance.now(), elapsed: 0 };
+    const current: Playback = { scene, started: performance.now(), elapsed: 0 };
     playback = current;
     playing = true;
     sceneTime = 0;
@@ -184,7 +194,7 @@ export function createWalkthrough(container, job) {
     playBrowserVoice(current);
   }
 
-  function playBrowserVoice(current) {
+  function playBrowserVoice(current: Playback) {
     const { scene } = current;
     const synthesis = window.speechSynthesis;
     const voice = synthesis?.getVoices().find((item) =>
@@ -208,7 +218,7 @@ export function createWalkthrough(container, job) {
     frame = requestAnimationFrame(tick);
   }
 
-  async function resume(current) {
+  async function resume(current: Playback) {
     playing = true;
     current.started = performance.now();
     setSceneControls();
@@ -228,12 +238,12 @@ export function createWalkthrough(container, job) {
     frame = requestAnimationFrame(tick);
   }
 
-  function captionsOnly(current) {
+  function captionsOnly(current: Playback) {
     current.utterance = undefined;
     setStatus("No voice available for this scene. Showing captions.");
   }
 
-  function tick(now) {
+  function tick(now: number) {
     const current = playback;
     if (!playing || !current) return;
     const elapsed = (current.elapsed + now - current.started) / 1000;
@@ -250,8 +260,8 @@ export function createWalkthrough(container, job) {
     }
   }
 
-  function end(current) {
-    if (current !== playback || !playing) return;
+  function end(current: Playback) {
+    if (current !== playback || !playing || !script) return;
     if (index + 1 < script.scenes.length) {
       move(index + 1, true);
       return;
@@ -275,16 +285,17 @@ export function createWalkthrough(container, job) {
     }
   }
 
-  function releaseAudio(current) {
+  function releaseAudio(current: Playback) {
     const { audio } = current;
     current.audio = undefined;
+    if (!audio) return;
     audio.onended = null;
     audio.pause();
     audio.removeAttribute("src");
     audio.load();
   }
 
-  function setStatus(message) {
+  function setStatus(message: string) {
     status.textContent = message;
     status.hidden = !message;
   }

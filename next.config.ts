@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const config: NextConfig = {
   poweredByHeader: false,
-  serverExternalPackages: ["playwright", "typescript"],
+  serverExternalPackages: ["playwright", "esbuild"],
   async headers() {
     return [{
       source: "/:path*",

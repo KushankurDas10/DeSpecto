@@ -1,10 +1,18 @@
-import { readFile } from "node:fs/promises";
+import type { Page } from "playwright";
+import type { Scene } from "../shared/contracts.ts";
+import { webAsset } from "../apps/api/web-assets.ts";
+
+interface FrameInput { scene: Scene; label: string; position: number; total: number }
+declare global {
+  interface Window {
+    renderEvidence: typeof import("../apps/web/dom.ts").showSceneEvidence;
+    seekEvidence: (time: number) => void;
+  }
+}
 
 export const frameSize = { width: 1280, height: 720 };
 export const motionRate = 10;
 const motionFrames = 15;
-const moduleFile = new URL("../apps/web/dom.js", import.meta.url);
-const styleFile = new URL("../apps/web/style.css", import.meta.url);
 
 const layout = `<!doctype html>
 <html lang="en">
@@ -30,32 +38,33 @@ const layout = `<!doctype html>
 </article>
 </html>`;
 
-export async function prepareFrame(page) {
-  const [module, styles] = await Promise.all([readFile(moduleFile), readFile(styleFile, "utf8")]);
+export async function prepareFrame(page: Page) {
+  const [module, styles] = await Promise.all([webAsset("dom.js"), webAsset("style.css")]);
+  if (!module || !styles) throw new Error("The walkthrough browser assets are unavailable.");
   await page.setContent(layout, { waitUntil: "domcontentloaded" });
-  await page.addStyleTag({ content: styles.replace(/^@import[^\n]*\n/, "") });
-  const moduleUrl = `data:text/javascript;base64,${module.toString("base64")}`;
+  await page.addStyleTag({ content: styles.text.replace(/^@import[^\n]*\n/, "") });
+  const moduleUrl = `data:text/javascript;base64,${Buffer.from(module.text).toString("base64")}`;
   await page.evaluate(async (url) => {
     const { showSceneEvidence } = await import(url);
     window.renderEvidence = showSceneEvidence;
   }, moduleUrl);
 }
 
-export async function renderFrames(page, input, save) {
+export async function renderFrames(page: Page, input: FrameInput, save: (index: number, bytes: Buffer) => Promise<void>) {
   const { scene } = input;
   await page.evaluate(async ({ scene, label, position, total }) => {
     document.documentElement.lang = scene.language;
-    document.querySelector("#position").textContent = `${label} · ${position} / ${total}`;
-    document.querySelector("h1").textContent = scene.title;
-    document.querySelector("footer").textContent = scene.caption;
-    const main = document.querySelector("main");
+    document.querySelector("#position")!.textContent = `${label} · ${position} / ${total}`;
+    document.querySelector("h1")!.textContent = scene.title;
+    document.querySelector("footer")!.textContent = scene.caption;
+    const main = document.querySelector("main")!;
     main.replaceChildren();
     main.style.setProperty("--shot-height", `${Math.max(90, main.clientHeight - 32)}px`);
     window.seekEvidence = window.renderEvidence(main, scene);
     await Promise.all([document.fonts.ready, ...[...main.querySelectorAll("img")].map((image) => image.decode())]);
   }, input);
 
-  const animated = scene.comparison?.kind === "screenshots" || (!scene.comparison && (scene.evidence?.box || scene.evidence?.file));
+  const animated = scene.comparison?.kind === "screenshots" || (!scene.comparison && scene.evidence && ("file" in scene.evidence || scene.evidence.box));
   const count = animated ? motionFrames : 1;
   for (let index = 0; index < count; index += 1) {
     await page.evaluate((time) => window.seekEvidence(time), animated ? index / (count - 1) : 1);

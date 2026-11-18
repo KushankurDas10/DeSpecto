@@ -1,30 +1,49 @@
-export function element(tag, className, text) {
+import type { ZodType } from "zod";
+import type { Box, Scene, ScreenshotEvidence } from "../../shared/contracts.ts";
+
+type Evidence = NonNullable<Scene["evidence"]>;
+type SourceLink = { repository?: string; revision?: string };
+export function element<Tag extends keyof HTMLElementTagNameMap>(tag: Tag, className?: string, text?: string): HTMLElementTagNameMap[Tag] {
   const node = document.createElement(tag);
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
 }
 
-export function button(text, className, click) {
+export function button(text: string, className: string, click: (event: MouseEvent) => void) {
   const node = element("button", className, text);
   node.type = "button";
   node.addEventListener("click", click);
   return node;
 }
 
-export async function request(url, options) {
-  const response = await fetch(url, options);
-  const value = await response.json().catch(() => null);
-  if (!response.ok) {
-    const error = new Error(value?.error || `The server returned HTTP ${response.status}.`);
-    error.status = response.status;
-    throw error;
+export class RequestError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
   }
-  if (!value) throw new Error("The server returned an unexpected response.");
-  return value;
 }
 
-export function screenshot({ screenshot, view, box, width, height }, alt) {
+export function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Something went wrong. Please try again.";
+}
+
+export async function request<T>(url: string, schema: ZodType<T>, options?: RequestInit): Promise<T> {
+  const response = await fetch(url, options);
+  const value: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = typeof value === "object" && value !== null && "error" in value && typeof value.error === "string"
+      ? value.error : `The server returned HTTP ${response.status}.`;
+    throw new RequestError(message, response.status);
+  }
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) throw new Error("The server returned an unexpected response.");
+  return parsed.data;
+}
+
+export function screenshot({ screenshot, view, box, width, height }: ScreenshotEvidence, alt: string) {
   const frame = element("div", `shot ${view ?? ""}`);
   const image = element("img");
   image.src = screenshot;
@@ -46,8 +65,8 @@ export function screenshot({ screenshot, view, box, width, height }, alt) {
   return frame;
 }
 
-export function showEvidence(container, evidence, { repository, revision } = {}) {
-  if (evidence.screenshot) {
+export function showEvidence(container: HTMLElement, evidence: Evidence, { repository, revision }: SourceLink = {}) {
+  if ("screenshot" in evidence) {
     const open = element("a", "evidence-full-link", "Open full screenshot");
     open.href = evidence.screenshot;
     open.target = "_blank";
@@ -61,17 +80,19 @@ export function showEvidence(container, evidence, { repository, revision } = {})
       view,
       open,
     );
-    if (evidence.box && evidence.height && evidence.box.y > 0) {
-      view.querySelector("img").decode().then(() => {
+    const image = view.querySelector("img");
+    const bounds = evidence.box;
+    if (image && bounds && evidence.height && bounds.y > 0) {
+      image.decode().then(() => {
         if (!view.isConnected) return;
-        view.scrollTop = view.querySelector("img").clientHeight * (evidence.box.y / evidence.height) - view.clientHeight * .25;
+        view.scrollTop = image.clientHeight * (bounds.y / evidence.height) - view.clientHeight * .25;
       }).catch(() => {});
     }
-  } else if (evidence.file) {
+  } else {
     const [start, end] = evidence.lines;
     const label = `${evidence.file} · ${start === end ? `line ${start}` : `lines ${start}–${end}`}`;
     const location = element(repository && revision ? "a" : "span", "evidence-label", label);
-    if (location.tagName === "A") {
+    if (location instanceof HTMLAnchorElement) {
       const file = evidence.file.split("/").map(encodeURIComponent).join("/");
       location.href = `${repository}/blob/${revision}/${file}#L${start}${start === end ? "" : `-L${end}`}`;
       location.target = "_blank";
@@ -88,11 +109,11 @@ export function showEvidence(container, evidence, { repository, revision } = {})
   }
 }
 
-export function showSceneEvidence(container, scene, options) {
+export function showSceneEvidence(container: HTMLElement, scene: Scene, options?: SourceLink): (time: number) => void {
   const { evidence, comparison } = scene;
   const visual = element("div", "scene-visual");
   container.append(visual);
-  if (comparison?.kind === "screenshots") {
+  if (comparison?.kind === "screenshots" && evidence && "screenshot" in evidence) {
     visual.classList.add("scene-comparison");
     const shots = ["Before", "After"].map((label) => {
       const before = label === "Before";
@@ -105,7 +126,7 @@ export function showSceneEvidence(container, scene, options) {
         screenshot: before ? comparison.before : comparison.after,
       }, before ? box : comparison.afterBox ?? null, before ? box : null, label);
     });
-    return (time) => {
+    return (time: number) => {
       shots[0](time);
       shots[1](time);
       visual.style.setProperty("--after-opacity", String(.42 + .58 * ease((time - .2) / .45)));
@@ -115,16 +136,16 @@ export function showSceneEvidence(container, scene, options) {
     visual.append(element("pre", "patch", comparison.patch));
     return () => {};
   }
-  if (evidence?.screenshot) {
+  if (evidence && "screenshot" in evidence) {
     return camera(visual, evidence, evidence.box, evidence.box, "Page evidence");
   }
-  if (evidence?.file) {
+  if (evidence && "file" in evidence) {
     showEvidence(visual, evidence, options);
-    const code = visual.querySelector(".code-block");
+    const code = visual.querySelector<HTMLElement>(".code-block")!;
     const pointer = element("span", "scene-cursor");
     pointer.setAttribute("aria-hidden", "true");
     visual.append(pointer);
-    return (time) => {
+    return (time: number) => {
       const amount = ease(time / .65);
       visual.classList.toggle("pointing", time > .12);
       pointer.style.left = `${72 - 63 * amount}%`;
@@ -135,7 +156,7 @@ export function showSceneEvidence(container, scene, options) {
   return () => {};
 }
 
-function camera(container, evidence, focus, outline, label) {
+function camera(container: HTMLElement, evidence: ScreenshotEvidence, focus: Box | null | undefined, outline: Box | null | undefined, label: string) {
   const { width, height, view } = evidence;
   const frame = element("div", `motion-frame ${view ?? ""}`);
   const image = element("img");
@@ -148,7 +169,7 @@ function camera(container, evidence, focus, outline, label) {
   frame.append(image, region, pointer);
   container.append(frame);
 
-  return (time) => {
+  return (time: number) => {
     const w = frame.clientWidth;
     const h = frame.clientHeight;
     if (!w || !h || !width || !height) return;
@@ -179,7 +200,7 @@ function camera(container, evidence, focus, outline, label) {
   };
 }
 
-function ease(value) {
+function ease(value: number) {
   const fraction = Math.min(1, Math.max(0, value));
   return fraction * fraction * (3 - 2 * fraction);
 }

@@ -1,23 +1,30 @@
-import { button, element, request } from "./dom.js";
-import { showReport } from "./report.js";
+import { z } from "zod";
+import { jobSchema, targetSchema, type Job } from "../../shared/contracts.ts";
+import { button, element, errorMessage, request, RequestError } from "./dom.ts";
+import { showReport } from "./report.ts";
 
 const sections = {
-  home: document.querySelector("#home"),
-  active: document.querySelector("#active"),
-  report: document.querySelector("#report"),
+  home: document.querySelector<HTMLElement>("#home")!,
+  active: document.querySelector<HTMLElement>("#active")!,
+  report: document.querySelector<HTMLElement>("#report")!,
 };
-const form = document.querySelector("#audit-form");
-const target = document.querySelector("#target");
-const historyList = document.querySelector("#history-list");
+const form = document.querySelector<HTMLFormElement>("#audit-form")!;
+const target = document.querySelector<HTMLInputElement>("#target")!;
+const historyList = document.querySelector<HTMLElement>("#history-list")!;
 const storageKey = "despecto.recent";
 const statuses = { queued: "Queued", running: "In progress", complete: "Complete", failed: "Failed", unavailable: "Unavailable" };
-let navigation;
-let disposeReport;
+const recentSchema = targetSchema.extend({
+  id: z.string(), status: z.enum(["queued", "running", "complete", "failed", "unavailable"]).optional(),
+});
+type RecentAudit = z.infer<typeof recentSchema>;
+type ProgressPanel = ReturnType<typeof createAuditProgress>;
+let navigation: AbortController | undefined;
+let disposeReport: (() => void) | undefined;
 let recent = readRecent();
 
-for (const example of document.querySelectorAll("[data-example]")) {
+for (const example of document.querySelectorAll<HTMLElement>("[data-example]")) {
   example.addEventListener("click", () => {
-    target.value = example.dataset.example;
+    target.value = example.dataset.example ?? "";
     void startAudit(target.value);
   });
 }
@@ -30,16 +37,16 @@ form.addEventListener("submit", (event) => {
 const auditSteps = {
   repo: [[0, "Queue"], [12, "Fetch source"], [38, "Index files"], [65, "Check claims"]],
   website: [[0, "Queue"], [21, "Desktop scan"], [56, "Mobile scan"], [82, "Review evidence"]],
-};
+} as const;
 
 window.addEventListener("popstate", route);
 route();
 
-async function startAudit(url) {
+async function startAudit(url: string) {
   const signal = beginNavigation();
   const panel = showProgress(url);
   try {
-    const job = await request("/api/audits", {
+    const job = await request("/api/audits", jobSchema, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ url }),
@@ -52,7 +59,7 @@ async function startAudit(url) {
     if (signal.aborted) return;
     panel.fail("Audit couldn’t start", isConnectionError(error)
       ? "DeSpecto did not respond. Check that npm start is still running, then try again."
-      : error.message, [["Edit URL", () => newAudit(url)], ["Retry audit", () => startAudit(url)]]);
+      : errorMessage(error), [["Edit URL", () => newAudit(url)], ["Retry audit", () => startAudit(url)]]);
   }
 }
 
@@ -62,7 +69,7 @@ function route() {
   else showHome();
 }
 
-function openAudit(id, job, panel) {
+function openAudit(id: string, job?: Job, panel?: ProgressPanel) {
   history.pushState(null, "", `#audit/${id}`);
   void follow(id, job, panel);
 }
@@ -88,12 +95,12 @@ function showHome() {
   renderHistory();
 }
 
-function show(name) {
+function show(name: keyof typeof sections) {
   for (const [key, node] of Object.entries(sections)) node.hidden = key !== name;
   window.scrollTo(0, 0);
 }
 
-function showProgress(label) {
+function showProgress(label?: string) {
   const panel = createAuditProgress(label);
   sections.active.replaceChildren(panel.card);
   show("active");
@@ -101,7 +108,7 @@ function showProgress(label) {
   return panel;
 }
 
-async function follow(id, job, visiblePanel) {
+async function follow(id: string, job?: Job, visiblePanel?: ProgressPanel) {
   const signal = beginNavigation();
   const saved = recent.find((audit) => audit.id === id);
   const panel = visiblePanel ?? showProgress(saved?.label);
@@ -109,7 +116,7 @@ async function follow(id, job, visiblePanel) {
 
   while (!signal.aborted) {
     try {
-      job ??= await request(`/api/audits/${id}`, { signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]) });
+      job ??= await request(`/api/audits/${id}`, jobSchema, { signal: AbortSignal.any([signal, AbortSignal.timeout(8000)]) });
       if (signal.aborted) return;
     } catch (error) {
       if (signal.aborted) return;
@@ -119,7 +126,7 @@ async function follow(id, job, visiblePanel) {
         await pause(1000 * missed);
         continue;
       }
-      if (error.status === 404) {
+      if (error instanceof RequestError && error.status === 404) {
         const interrupted = saved && ["queued", "running"].includes(saved.status);
         if (saved) saveAudit({ ...saved, status: "unavailable" });
         panel.fail(interrupted ? "Audit interrupted" : "Audit unavailable",
@@ -152,11 +159,11 @@ async function follow(id, job, visiblePanel) {
   }
 }
 
-function isConnectionError(error) {
-  return error instanceof TypeError || error.name === "TimeoutError" || error.status >= 500;
+function isConnectionError(error: unknown) {
+  return error instanceof TypeError || (error instanceof Error && error.name === "TimeoutError") || (error instanceof RequestError && error.status >= 500);
 }
 
-function pause(ms) {
+function pause(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
@@ -170,28 +177,28 @@ function renderHistory() {
     const row = button("", "history-row", () => openAudit(audit.id));
     const arrow = element("span", "", "↗");
     arrow.setAttribute("aria-hidden", "true");
-    const status = element("span", "history-status", statuses[audit.status] ?? statuses.complete);
+    const status = element("span", "history-status", statuses[audit.status ?? "complete"]);
     status.dataset.state = audit.status ?? "complete";
     row.append(element("span", "category", audit.source === "repo" ? "Repo" : "Site"), element("strong", "", audit.label), status, arrow);
     historyList.append(row);
   }
 }
 
-function remember(job) {
+function remember(job: Job) {
   saveAudit({ id: job.id, status: job.status, ...job.target });
 }
 
-function saveAudit(audit) {
+function saveAudit(audit: RecentAudit) {
   const existing = recent.find((item) => item.id === audit.id);
   if (existing?.status === audit.status) return;
   recent = [audit, ...recent.filter(({ id }) => id !== audit.id)].slice(0, 6);
   saveRecent();
 }
 
-function readRecent() {
+function readRecent(): RecentAudit[] {
   try {
-    const saved = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
-    return Array.isArray(saved) ? saved.filter((item) => item?.id && item?.label).slice(0, 6) : [];
+    const saved: unknown = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
+    return Array.isArray(saved) ? saved.flatMap((item: unknown) => { const parsed = recentSchema.safeParse(item); return parsed.success ? [parsed.data] : []; }).slice(0, 6) : [];
   } catch {
     return [];
   }
@@ -205,7 +212,7 @@ function saveRecent() {
   }
 }
 
-function createAuditProgress(label) {
+function createAuditProgress(label?: string) {
   const card = element("div", "active-card card");
   const header = element("div", "audit-status-header");
   const badge = element("span", "audit-badge", "Starting");
@@ -225,13 +232,13 @@ function createAuditProgress(label) {
   meter.append(progress, percent);
   card.append(header, title, stage, meter, timeline, actions);
 
-  let activeSource;
-  let markers = [];
+  let activeSource: Job["target"]["source"] | undefined;
+  let markers: Array<[number, HTMLLIElement]> = [];
 
   return {
     card,
     focus: () => title.focus({ preventScroll: true }),
-    update(job) {
+    update(job: Job) {
       if (title.textContent !== job.target.label) title.textContent = job.target.label;
       const queued = job.status === "queued";
       badge.textContent = queued ? "Queued" : "In progress";
@@ -251,12 +258,12 @@ function createAuditProgress(label) {
         else marker.removeAttribute("aria-current");
       }
     },
-    reconnect(attempt) {
+    reconnect(attempt: number) {
       badge.textContent = "Reconnecting";
       badge.dataset.state = "reconnecting";
       stage.textContent = `Lost connection to the audit server. Reconnecting (${attempt}/3)…`;
     },
-    fail(heading, explanation, buttons) {
+    fail(heading: string, explanation: string, buttons: Array<[string, () => void]>) {
       badge.textContent = "Needs attention";
       badge.dataset.state = "failed";
       title.textContent = heading;
