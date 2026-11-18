@@ -18,7 +18,7 @@ const staticFiles = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
   ["/favicon.ico", ["favicon.ico", "image/x-icon"]],
   ["/style.css", ["style.css", "text/css; charset=utf-8"]],
-  ...["app.js", "audit-progress.js", "dom.js", "report.js", "walkthrough.js", "export.js"].map((name) =>
+  ...["app.js", "dom.js", "report.js", "walkthrough.js", "export.js"].map((name) =>
     [`/${name}`, [name, "text/javascript; charset=utf-8"]]),
 ]);
 
