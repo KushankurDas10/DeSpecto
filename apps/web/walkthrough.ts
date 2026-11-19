@@ -39,7 +39,9 @@ export function createWalkthrough(container: HTMLElement, job: CompletedJob) {
   video.hidden = true;
 
   const slate = element("div", "player-slate");
-  const mark = element("span", "slate-mark", "▷");
+  const mark = element("img", "slate-mark");
+  mark.src = "/inspector.svg";
+  mark.alt = "";
   mark.setAttribute("aria-hidden", "true");
   const screenTitle = element("p", "slate-title", "Watch the audit");
   const status = element("p", "slate-status");
@@ -50,7 +52,9 @@ export function createWalkthrough(container: HTMLElement, job: CompletedJob) {
   let actionMethod: "GET" | "POST" = "POST";
   const create = button("Create walkthrough", "button primary", () => void load(actionMethod));
   create.hidden = true;
-  slate.append(mark, screenTitle, status, progress, create);
+  const slateCopy = element("div", "slate-copy");
+  slateCopy.append(screenTitle, status, progress, create);
+  slate.append(mark, slateCopy);
   screen.append(video, slate);
 
   const playback = element("div", "player-main");
@@ -167,7 +171,8 @@ export function createWalkthrough(container: HTMLElement, job: CompletedJob) {
   }
 
   function drawChapters() {
-    length.textContent = cut ? timecode(cut.duration) : "";
+    const count = cut?.chapters.length ?? 1 + job.result.findings.length + job.result.findings.filter(({ fix }) => fix).length;
+    length.textContent = count + (count === 1 ? " chapter" : " chapters") + (cut ? " · " + timecode(cut.duration) : "");
     const chapters = cut?.chapters;
     rows = [];
     list.replaceChildren();
@@ -247,8 +252,16 @@ export function createWalkthrough(container: HTMLElement, job: CompletedJob) {
     const index = cut?.chapters.findIndex(({ start, duration }) =>
       video.currentTime >= start - .01 && video.currentTime < start + duration - .01) ?? -1;
     for (const [position, row] of rows.entries()) {
-      if (position === index || (video.ended && position === rows.length - 1)) row.setAttribute("aria-current", "true");
-      else row.removeAttribute("aria-current");
+      const current = position === index || (video.ended && position === rows.length - 1);
+      if (current && !row.hasAttribute("aria-current")) {
+        row.setAttribute("aria-current", "true");
+        const card = row.getBoundingClientRect();
+        const track = list.getBoundingClientRect();
+        if (card.left < track.left) list.scrollLeft += card.left - track.left - 14;
+        else if (card.right > track.right) list.scrollLeft += card.right - track.right + 14;
+      } else if (!current) {
+        row.removeAttribute("aria-current");
+      }
     }
   }
 
