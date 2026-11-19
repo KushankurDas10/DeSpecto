@@ -14,7 +14,7 @@ export function showReport(container: HTMLElement, job: CompletedJob, onNewAudit
   link.href = target.url;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
-  text.append(element("span", "eyebrow", target.source === "repo" ? "REPOSITORY AUDIT" : "WEBSITE AUDIT"), title, link);
+  text.append(element("span", "eyebrow", target.source === "repo" ? "Repository audit" : "Website audit"), title, link);
   for (const note of result.notes ?? []) text.append(element("p", "report-notes", note));
   heading.append(text, button("New audit", "button", onNewAudit));
 
