@@ -1,302 +1,270 @@
-import { fixSchema, languageSchema, walkthroughSchema, type CompletedJob, type Language, type Scene, type Walkthrough } from "../../shared/contracts.ts";
+import { fixSchema, languageSchema, type Chapter, type CompletedJob, type ExportState, type Language } from "../../shared/contracts.ts";
+import { button, element, errorMessage, request } from "./dom.ts";
+import { videoExport } from "./export.ts";
 
-interface Playback {
-  scene: Scene;
-  started: number;
-  elapsed: number;
-  audio?: HTMLAudioElement;
-  utterance?: SpeechSynthesisUtterance;
-}
-import { button, element, errorMessage, request, showSceneEvidence } from "./dom.ts";
-import { showExport } from "./export.ts";
-
-const voices = { en: "en-US", hi: "hi-IN", te: "te-IN" };
+type Cut = Extract<ExportState, { status: "complete" }>;
+const languageNames = { en: "English", hi: "Hindi", te: "Telugu" } satisfies Record<Language, string>;
+const timecode = (seconds: number) => Math.floor(seconds / 60) + ":" + String(Math.floor(seconds) % 60).padStart(2, "0");
+type Media = ReturnType<ReturnType<typeof videoExport>["media"]>;
 let selectedLanguage: Language = "en";
 
 export function createWalkthrough(container: HTMLElement, job: CompletedJob) {
   const player = element("section", "card player");
-  const settings = element("div", "player-settings");
+  player.setAttribute("aria-labelledby", "walkthrough-title");
+  const toolbar = element("header", "player-toolbar");
+  const title = element("h2", "", "Audit walkthrough");
+  title.id = "walkthrough-title";
   const languageLabel = element("label", "language-control", "Narration");
   const language = element("select");
-  for (const [code, label] of [["en", "English"], ["hi", "Hindi"], ["te", "Telugu"]]) {
-    const option = element("option", "", label);
+  for (const [code, name] of Object.entries(languageNames)) {
+    const option = element("option", "", name);
     option.value = code;
     language.append(option);
   }
   language.value = selectedLanguage;
   languageLabel.append(language);
-  settings.append(element("h2", "", "Audit walkthrough"), languageLabel);
+  const download = element("a", "button primary", "Download MP4");
+  download.hidden = true;
+  const tools = element("div", "player-tools");
+  tools.append(languageLabel, download);
+  toolbar.append(title, tools);
 
-  const stage = element("div", "stage");
-  const controls = element("div", "play-controls");
-  const play = button("Play", "button primary", toggle);
-  const previous = button("Previous", "button", () => move(index - 1, playing));
-  const next = button("Next", "button", () => move(index + 1, playing));
-  const progress = element("progress");
-  progress.max = 100;
-  progress.setAttribute("aria-label", "Scene progress");
-  const count = element("output");
-  const status = element("p", "voice-note");
+  const layout = element("div", "player-layout");
+  const screen = element("div", "player-screen");
+  const video = element("video");
+  video.controls = true;
+  video.playsInline = true;
+  video.preload = "metadata";
+  video.setAttribute("aria-label", "Recorded audit walkthrough");
+  video.hidden = true;
+
+  const slate = element("div", "player-slate");
+  const mark = element("span", "slate-mark", "▷");
+  mark.setAttribute("aria-hidden", "true");
+  const screenTitle = element("p", "slate-title", "Watch the audit");
+  const status = element("p", "slate-status");
   status.setAttribute("role", "status");
-  status.hidden = true;
-  const exports = element("div", "export-controls");
-  exports.hidden = true;
-  controls.append(play, previous, next, progress, count);
-  player.append(settings, stage, controls, status, exports);
+  const progress = element("progress");
+  progress.setAttribute("aria-label", "Walkthrough rendering progress");
+  progress.hidden = true;
+  let actionMethod: "GET" | "POST" = "POST";
+  const create = button("Create walkthrough", "button primary", () => void load(actionMethod));
+  create.hidden = true;
+  slate.append(mark, screenTitle, status, progress, create);
+  screen.append(video, slate);
+
+  const playback = element("div", "player-main");
+  const notice = element("p", "player-notice");
+  notice.setAttribute("role", "status");
+  notice.hidden = true;
+  playback.append(screen, notice);
+
+  const sidebar = element("nav", "player-chapters");
+  sidebar.setAttribute("aria-label", "Walkthrough chapters");
+  const bar = element("div", "chapter-header");
+  const length = element("span", "chapter-time");
+  bar.append(element("h3", "", "Chapters"), length);
+  const list = element("ol", "chapter-list");
+  sidebar.append(bar, list);
+  layout.append(playback, sidebar);
+  player.append(toolbar, layout);
   container.replaceChildren(player);
 
   let controller = new AbortController();
-  let script: Walkthrough | undefined;
-  let playback: Playback | undefined;
-  let frame = 0;
-  let index = 0;
-  let playing = false;
-  let finished = false;
-  let seekScene: (time: number) => void = () => {};
-  let sceneTime = 1;
-  const resize = () => seekScene(sceneTime);
-  window.addEventListener("resize", resize);
+  let cut: Cut | undefined;
+  let working = false;
+  let pendingChapter: Chapter | undefined;
+  let rows: HTMLButtonElement[] = [];
+
   language.addEventListener("change", () => {
     selectedLanguage = languageSchema.parse(language.value);
     void load();
   });
+  video.addEventListener("timeupdate", highlightChapter);
+  video.addEventListener("seeking", highlightChapter);
+  video.addEventListener("loadedmetadata", () => {
+    if (pendingChapter) jumpTo(pendingChapter);
+  });
+  video.addEventListener("error", () => {
+    if (cut) showSlate("Playback interrupted", "Reload the walkthrough to try again.", "Reload video", "GET");
+  });
   void load();
-
   return () => {
-    controller?.abort();
-    stop();
-    window.removeEventListener("resize", resize);
+    controller.abort();
+    releaseVideo();
   };
 
-  async function load(fixId?: string) {
-    controller?.abort();
+  async function load(method: "GET" | "POST" = "GET", fixId?: string) {
+    controller.abort();
     controller = new AbortController();
     const { signal } = controller;
-    stop();
-    script = undefined;
-    setStatus("");
-    exports.hidden = true;
-    setSceneControls();
-    stage.replaceChildren(element("p", "", "Preparing walkthrough…"));
+    const narration = selectedLanguage;
+    const exporter = videoExport(job, narration);
+    releaseVideo();
+    working = true;
+    drawChapters();
+    showSlate("Watch the audit", "Checking for a saved walkthrough…");
+    setNotice("");
     try {
-      const result = await request(`/api/audits/${job.id}/walkthrough?lang=${language.value}`, walkthroughSchema, { signal });
-      if (signal.aborted) return;
-      script = result;
-      const preview = fixId ? result.scenes.findIndex((scene) => scene.findingId === fixId && scene.comparison) : -1;
-      move(Math.max(0, preview), false);
-      if (result.exportAvailable) showExport(exports, job, selectedLanguage, signal);
-    } catch (error) {
-      if (!signal.aborted) {
-        stage.replaceChildren(element("p", "", errorMessage(error)), button("Retry", "button", () => void load()));
-      }
-    }
-  }
-
-  function move(position: number, autoplay: boolean) {
-    if (!script || position < 0 || position >= script.scenes.length) return;
-    stop();
-    index = position;
-    finished = false;
-    progress.value = 0;
-    const scene = script.scenes[index];
-    stage.replaceChildren(element("span", "eyebrow", `SCENE ${index + 1} OF ${script.scenes.length}`));
-    const title = element("h3", "", scene.title);
-    title.lang = scene.language;
-    stage.append(title);
-    seekScene = showSceneEvidence(stage, scene, { repository: job.target.url, revision: job.result.revision });
-    const caption = element("p", "caption", scene.caption);
-    caption.lang = scene.language;
-    stage.append(caption);
-    sceneTime = 1;
-    seekScene(sceneTime);
-    if (scene.fixAvailable && !scene.comparison) addFixControl(scene);
-    setStatus(scene.language !== language.value ? "This finding is available in English." : "");
-    setSceneControls();
-    if (autoplay) void start();
-  }
-
-  function addFixControl(scene: Scene) {
-    const actions = element("div", "scene-actions");
-    const preview = script?.scenes.findIndex((candidate) => candidate.findingId === scene.findingId && candidate.comparison) ?? -1;
-    const action = button(preview >= 0 ? "View fix" : "Show fix", "button", async () => {
-      if (preview >= 0) {
-        move(preview, false);
-        return;
-      }
-      stop();
-      setSceneControls();
-      const { signal } = controller;
-      action.disabled = true;
-      action.textContent = "Preparing fix…";
-      try {
-        const fix = await request(`/api/audits/${job.id}/findings/${scene.findingId}/fix`, fixSchema, { method: "POST", signal });
-        const item = job.result.findings.find(({ id }) => id === scene.findingId);
-        if (item) item.fix = fix;
-        if (!signal.aborted) void load(scene.findingId);
-      } catch (error) {
-        if (signal.aborted) return;
-        setStatus(errorMessage(error));
-        action.disabled = false;
-        action.textContent = "Retry fix";
-      }
-    });
-    actions.append(action);
-    stage.append(actions);
-  }
-
-  function setSceneControls() {
-    play.disabled = !script;
-    play.textContent = playing ? "Pause" : finished ? "Replay" : "Play";
-    previous.disabled = !script || index === 0;
-    next.disabled = !script || index === script.scenes.length - 1;
-    count.textContent = script ? `${index + 1} / ${script.scenes.length}` : "";
-  }
-
-  function toggle() {
-    if (playing && playback) {
-      playing = false;
-      playback.elapsed += performance.now() - playback.started;
-      playback.audio?.pause();
-      if (playback.utterance) speechSynthesis.pause();
-      cancelAnimationFrame(frame);
-      setSceneControls();
-    } else if (finished) {
-      move(0, true);
-    } else if (playback) {
-      void resume(playback);
-    } else {
-      void start();
-    }
-  }
-
-  async function start() {
-    if (!script) return;
-    const scene = script.scenes[index];
-    const current: Playback = { scene, started: performance.now(), elapsed: 0 };
-    playback = current;
-    playing = true;
-    sceneTime = 0;
-    seekScene(sceneTime);
-    setSceneControls();
-    if (script.speechAvailable) {
-      const audio = new Audio(`/api/audits/${job.id}/audio/${index}?lang=${language.value}&revision=${encodeURIComponent(script.revision)}`);
-      current.audio = audio;
-      audio.onended = () => end(current);
-      try {
-        await audio.play();
-        if (current === playback && playing) frame = requestAnimationFrame(tick);
-        return;
-      } catch {
-        if (current !== playback || !playing) return;
-        releaseAudio(current);
-      }
-    }
-    playBrowserVoice(current);
-  }
-
-  function playBrowserVoice(current: Playback) {
-    const { scene } = current;
-    const synthesis = window.speechSynthesis;
-    const voice = synthesis?.getVoices().find((item) =>
-      item.lang.toLowerCase().split(/[-_]/)[0] === scene.language);
-    current.started = performance.now();
-    current.elapsed = 0;
-    if (voice && window.SpeechSynthesisUtterance) {
-      const utterance = new SpeechSynthesisUtterance(scene.caption);
-      current.utterance = utterance;
-      utterance.lang = voices[scene.language];
-      utterance.voice = voice;
-      utterance.onend = () => end(current);
-      utterance.onerror = () => {
-        if (current === playback) captionsOnly(current);
-      };
-      synthesis.resume();
-      synthesis.speak(utterance);
-    } else {
-      captionsOnly(current);
-    }
-    frame = requestAnimationFrame(tick);
-  }
-
-  async function resume(current: Playback) {
-    playing = true;
-    current.started = performance.now();
-    setSceneControls();
-    if (current.audio) {
-      try {
-        await current.audio.play();
-      } catch {
-        if (current === playback && playing) {
-          releaseAudio(current);
-          playBrowserVoice(current);
+      await exporter.follow(method, signal, (state) => {
+        if (state.status === "complete") {
+          showVideo(state, narration, exporter.media(state.revision), fixId);
+        } else if (state.status === "rendering") {
+          const copy = { script: "Writing the narration…", edit: "Editing evidence and recording narration…", encode: "Finishing the MP4…" };
+          const count = state.total ? " " + state.completed + " of " + state.total + " chapters." : "";
+          showSlate("Building your walkthrough", copy[state.phase] + count);
+          if (state.total > 0) {
+            progress.hidden = false;
+            progress.max = state.total;
+            progress.value = state.completed;
+          }
+        } else if (state.status === "failed") {
+          showSlate("The walkthrough stopped", state.error, "Try again");
+        } else {
+          showSlate("Watch the audit", "Follow the evidence with narration, captions, and fix previews.", "Create walkthrough");
         }
-        return;
+      });
+    } catch (error) {
+      if (!signal.aborted) showSlate("Walkthrough unavailable", errorMessage(error), "Try again", method);
+    } finally {
+      if (!signal.aborted) {
+        working = false;
+        drawChapters();
       }
     }
-    if (current !== playback || !playing) return;
-    if (current.utterance) speechSynthesis.resume();
-    frame = requestAnimationFrame(tick);
   }
 
-  function captionsOnly(current: Playback) {
-    current.utterance = undefined;
-    setStatus("No voice available for this scene. Showing captions.");
+  function showSlate(heading: string, message: string, action?: string, method: "GET" | "POST" = "POST") {
+    video.hidden = true;
+    download.hidden = true;
+    slate.hidden = false;
+    if (screenTitle.textContent !== heading) screenTitle.textContent = heading;
+    if (status.textContent !== message) status.textContent = message;
+    progress.hidden = true;
+    create.hidden = !action;
+    create.textContent = action ?? "";
+    actionMethod = method;
   }
 
-  function tick(now: number) {
-    const current = playback;
-    if (!playing || !current) return;
-    const elapsed = (current.elapsed + now - current.started) / 1000;
-    sceneTime = Math.min(1, (current.audio?.currentTime ?? elapsed) / 1.4);
-    seekScene(sceneTime);
-    const ratio = current.audio
-      ? current.audio.currentTime / (current.audio.duration || current.scene.duration)
-      : elapsed / current.scene.duration;
-    progress.value = Math.max(0, Math.min(100, ratio * 100));
-    if ((!current.audio && !current.utterance && ratio >= 1) || (!current.audio && ratio >= 3)) {
-      end(current);
-    } else {
-      frame = requestAnimationFrame(tick);
-    }
+  function showVideo(state: Cut, narration: Language, media: Media, fixId?: string) {
+    cut = state;
+    pendingChapter = state.chapters.find(({ kind, findingId }) => kind === "comparison" && findingId === fixId);
+    const captions = element("track");
+    captions.kind = "captions";
+    captions.label = languageNames[narration];
+    captions.srclang = narration;
+    captions.default = state.narrated < state.total;
+    captions.src = media.captions;
+    video.append(captions);
+    if (captions.default) captions.track.mode = "showing";
+    video.src = media.video;
+    video.hidden = false;
+    slate.hidden = true;
+    download.href = media.download;
+    download.hidden = false;
+    setNotice(state.narrated === 0 ? "Captions only. Narration was unavailable for this cut."
+      : state.narrated < state.total ? "Captions cover every chapter. Some chapters have no narration." : "");
   }
 
-  function end(current: Playback) {
-    if (current !== playback || !playing || !script) return;
-    if (index + 1 < script.scenes.length) {
-      move(index + 1, true);
+  function drawChapters() {
+    length.textContent = cut ? timecode(cut.duration) : "";
+    const chapters = cut?.chapters;
+    rows = [];
+    list.replaceChildren();
+    if (chapters) {
+      for (const chapter of chapters) {
+        const row = element("li", "chapter");
+        const seek = button("", "chapter-seek", () => jumpTo(chapter));
+        seek.append(element("span", "chapter-time", timecode(chapter.start)), element("span", "", chapter.title));
+        seek.lang = selectedLanguage;
+        row.append(seek);
+        if (chapter.kind === "finding") {
+          const item = job.result.findings.find(({ id }) => id === chapter.findingId);
+          if (item?.fixAvailable && !item.fix) row.append(fixButton(item));
+        }
+        rows.push(seek);
+        list.append(row);
+      }
+      highlightChapter();
       return;
     }
-    stop();
-    progress.value = 100;
-    finished = true;
-    setSceneControls();
-  }
 
-  function stop() {
-    const current = playback;
-    playing = false;
-    playback = undefined;
-    cancelAnimationFrame(frame);
-    if (current?.audio) releaseAudio(current);
-    if (current?.utterance) {
-      current.utterance.onend = null;
-      current.utterance.onerror = null;
-      speechSynthesis.cancel();
+    const overview = element("li", "chapter");
+    overview.append(element("span", "chapter-label", "Audit overview"));
+    list.append(overview);
+    for (const item of job.result.findings) {
+      const row = element("li", "chapter");
+      row.append(element("span", "chapter-label", item.title));
+      if (item.fixAvailable && !item.fix) row.append(fixButton(item));
+      if (item.fix) row.append(element("span", "chapter-fix-included", "Fix included"));
+      list.append(row);
     }
   }
 
-  function releaseAudio(current: Playback) {
-    const { audio } = current;
-    current.audio = undefined;
-    if (!audio) return;
-    audio.onended = null;
-    audio.pause();
-    audio.removeAttribute("src");
-    audio.load();
+  function fixButton(item: CompletedJob["result"]["findings"][number]) {
+    const action = button("Show fix", "chapter-fix", () => void addFix(item));
+    action.disabled = working;
+    action.setAttribute("aria-label", "Show fix for " + item.title);
+    return action;
   }
 
-  function setStatus(message: string) {
-    status.textContent = message;
-    status.hidden = !message;
+  async function addFix(item: CompletedJob["result"]["findings"][number]) {
+    if (working) return;
+    working = true;
+    language.disabled = true;
+    create.disabled = true;
+    drawChapters();
+    video.pause();
+    setNotice("Preparing a before-and-after comparison…");
+    const { signal } = controller;
+    try {
+      item.fix = await request("/api/audits/" + job.id + "/findings/" + item.id + "/fix", fixSchema, { method: "POST", signal });
+      if (!signal.aborted) await load("POST", item.id);
+    } catch (error) {
+      if (!signal.aborted) setNotice(errorMessage(error));
+    } finally {
+      language.disabled = false;
+      create.disabled = false;
+      if (!signal.aborted) {
+        working = false;
+        drawChapters();
+      }
+    }
+  }
+
+  function jumpTo(chapter: Chapter) {
+    if (video.readyState === 0) {
+      pendingChapter = chapter;
+      return;
+    }
+    pendingChapter = undefined;
+    // Land after the short transition and before the next chapter's narration starts.
+    video.currentTime = chapter.start === 0 ? 0 : chapter.start + .25;
+    highlightChapter();
+  }
+
+  function highlightChapter() {
+    const index = cut?.chapters.findIndex(({ start, duration }) =>
+      video.currentTime >= start - .01 && video.currentTime < start + duration - .01) ?? -1;
+    for (const [position, row] of rows.entries()) {
+      if (position === index || (video.ended && position === rows.length - 1)) row.setAttribute("aria-current", "true");
+      else row.removeAttribute("aria-current");
+    }
+  }
+
+  function releaseVideo() {
+    cut = undefined;
+    pendingChapter = undefined;
+    video.pause();
+    if (video.hasAttribute("src")) {
+      video.removeAttribute("src");
+      video.replaceChildren();
+      video.load();
+    }
+  }
+
+  function setNotice(message: string) {
+    notice.textContent = message;
+    notice.hidden = !message;
   }
 }

@@ -124,10 +124,13 @@ async function render(job: CompletedJob, language: Language, script: Promise<Wal
         const segment = Buffer.alloc(Math.round(duration * sampleRate) * 2);
         pcm.copy(segment, Math.round(lead * sampleRate) * 2);
         await soundtrack.writeFile(segment);
+        const filters = [
+          "fps=24", "tpad=stop_mode=clone:stop_duration=" + duration,
+          ...(index === 0 ? [] : ["fade=t=in:d=0.24:color=0x141526"]),
+          "fade=t=out:d=0.2:st=" + (duration - 0.2) + ":color=0x141526",
+        ];
         await ffmpeg([
-          "-framerate", String(motionRate), "-i", framePrefix + "%02d.png",
-          "-vf", "fps=24,tpad=stop_mode=clone:stop_duration=" + duration
-            + ",fade=t=in:d=0.24:color=0x141526,fade=t=out:d=0.2:st=" + (duration - 0.2) + ":color=0x141526",
+          "-framerate", String(motionRate), "-i", framePrefix + "%02d.png", "-vf", filters.join(","),
           "-frames:v", String(frames), "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
           "-threads", "3", "-pix_fmt", "yuv420p", "clip-" + index + ".mp4",
         ], directory, deadline);
@@ -141,6 +144,7 @@ async function render(job: CompletedJob, language: Language, script: Promise<Wal
     state.phase = "encode";
     const chapters = timeline.map(({ chapter }) => chapter);
     const captions = captionsFor(timeline, lead, tail);
+    const narrated = timeline.filter(({ speech }) => speech > 0).length;
     const duration = videoFrames / fps;
     const isoLanguage = { en: "eng", hi: "hin", te: "tel" }[language];
     await Promise.all([
@@ -155,11 +159,11 @@ async function render(job: CompletedJob, language: Language, script: Promise<Wal
       "-map", "0:v:0", "-map", "1:a:0", "-map", "2:s:0", "-map_metadata", "3", "-map_chapters", "3",
       "-c:v", "copy", "-c:a", "aac", "-b:a", "96k", "-c:s", "mov_text",
       "-metadata:s:a:0", "language=" + isoLanguage, "-metadata:s:s:0", "language=" + isoLanguage,
-      "-disposition:s:0", "0", "-movflags", "+faststart", "walkthrough.mp4",
+      "-disposition:s:0", narrated < chapters.length ? "default" : "0", "-movflags", "+faststart", "walkthrough.mp4",
     ], directory, deadline);
     const path = join(directory, "walkthrough.mp4");
     if ((await stat(path)).size > maxBytes) throw new InputError("The walkthrough exceeded the 48 MiB limit.");
-    return { bytes: await readFile(path), captions, chapters, duration, narrated: timeline.filter(({ speech }) => speech > 0).length };
+    return { bytes: await readFile(path), captions, chapters, duration, narrated };
   } finally {
     try {
       await browser?.close();

@@ -45,7 +45,7 @@ Built-in checks and captions work without credentials. The browser can speak cap
 
 ## Download a walkthrough
 
-Install FFmpeg with H.264 support and make it available on `PATH`, or set `FFMPEG_PATH` to its executable. Restart DeSpecto, open an audit's **Walkthrough** tab, and select the narration language. The camera and pointer move toward each finding as it plays. Choose **Show fix** on a supported finding to add a before-and-after scene. **Export MP4** includes those scenes, camera movement, captions, and available narration. The server retains the most recent export.
+Install FFmpeg with H.264 support and make it available on `PATH`, or set `FFMPEG_PATH` to its executable. Restart DeSpecto, open an audit’s **Walkthrough** tab, select a language, then choose **Create walkthrough**. Use the chapter list to jump to a finding. **Show fix** adds the before-and-after comparison next to the finding in the cut. **Download MP4** saves the same video with its caption track and chapter markers. Recently rendered videos stay in server memory.
 
 ## Level 1 verification
 
