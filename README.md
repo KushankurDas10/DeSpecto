@@ -39,7 +39,7 @@ GEMINI_TTS_MODEL=gemini-3.8-flash-tts
 
 Run `npm run check:providers -- --speech` to verify narration alone. Run `npm run check:providers` to also verify text and image review. These commands send short requests to the configured providers. Restart the app after changing `.env`.
 
-The text and vision models can use another compatible chat completions API through `AI_BASE_URL`. For an OpenAI-compatible MP3 speech endpoint, set `TTS_BASE_URL`, `TTS_MODEL`, and `TTS_API_KEY` in place of `GEMINI_API_KEY`. Set `TTS_VOICE_EN`, `TTS_VOICE_HI`, or `TTS_VOICE_TE` to override the default voice (`Charon` for Gemini).
+The text and vision models can use another compatible chat completions API through `AI_BASE_URL`. For an OpenAI-compatible MP3 speech endpoint, set `TTS_BASE_URL`, `TTS_MODEL`, and `TTS_API_KEY` in place of `GEMINI_API_KEY`. Gemini uses Charon for English, Kore for Hindi, and Sulafat for Telugu throughout the walkthrough. Compatible speech endpoints use the single `TTS_VOICE` preset configured on the server.
 
 Built-in checks and captions work without credentials. The browser can speak captions when it has an installed voice for the selected language.
 

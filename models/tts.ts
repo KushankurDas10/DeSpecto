@@ -1,12 +1,13 @@
 import process from "node:process";
 import { z } from "zod";
-import type { Scene } from "../shared/contracts.ts";
+import type { Language, Scene } from "../shared/contracts.ts";
 
 export interface Narration {
   bytes: Buffer;
   contentType: "audio/wav" | "audio/mpeg";
 }
 const maxAudioBytes = 2 * 1024 * 1024;
+const geminiVoices: Record<Language, string> = { en: "Charon", hi: "Kore", te: "Sulafat" };
 
 const speechResponse = z.object({
   candidates: z.array(z.object({ content: z.object({ parts: z.array(z.object({
@@ -22,8 +23,7 @@ export function speechConfigured() {
 export async function synthesize({ language, caption }: Pick<Scene, "language" | "caption">): Promise<Narration | null> {
   if (!speechConfigured()) return null;
   const key = process.env.GEMINI_API_KEY?.trim();
-  const voice = process.env[`TTS_VOICE_${language.toUpperCase()}`];
-  const request = key ? geminiRequest(caption, voice, key) : compatibleRequest(caption, voice);
+  const request = key ? geminiRequest(caption, geminiVoices[language], key) : compatibleRequest(caption);
   if (!request) return null;
 
   const response = await fetch(request.url, {
@@ -55,7 +55,7 @@ async function readAudioResponse(body: ReadableStream<Uint8Array>, limit: number
   return Buffer.concat(chunks);
 }
 
-function geminiRequest(caption: string, voice: string | undefined, key: string) {
+function geminiRequest(caption: string, voice: string, key: string) {
   const model = process.env.GEMINI_TTS_MODEL ?? "gemini-3.8-flash-tts";
   return {
     url: `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
@@ -68,7 +68,7 @@ function geminiRequest(caption: string, voice: string | undefined, key: string) 
         contents: [{ parts: [{ text: caption }] }],
         generationConfig: {
           responseModalities: ["AUDIO"],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice || "Charon" } } },
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
         },
       }),
     },
@@ -107,7 +107,7 @@ function decodeGeminiAudio(result: unknown): Narration {
   return { bytes: Buffer.concat([header, bytes]), contentType: "audio/wav" };
 }
 
-function compatibleRequest(caption: string, voice?: string) {
+function compatibleRequest(caption: string) {
   const { TTS_BASE_URL, TTS_MODEL, TTS_API_KEY, TTS_VOICE } = process.env;
   if (!TTS_BASE_URL || !TTS_MODEL) return null;
   return {
@@ -117,7 +117,7 @@ function compatibleRequest(caption: string, voice?: string) {
         "content-type": "application/json",
         ...(TTS_API_KEY ? { authorization: `Bearer ${TTS_API_KEY}` } : {}),
       },
-      body: JSON.stringify({ model: TTS_MODEL, voice: voice || TTS_VOICE || "alloy", input: caption, response_format: "mp3" }),
+      body: JSON.stringify({ model: TTS_MODEL, voice: TTS_VOICE || "alloy", input: caption, response_format: "mp3" }),
     },
   };
 }

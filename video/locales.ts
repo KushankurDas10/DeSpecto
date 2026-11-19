@@ -2,19 +2,22 @@ import type { Language, View } from "../shared/contracts.ts";
 export const locales = {
   en: {
     opening: "Audit overview",
-    count: (target: string, total: number) => `${target}. The audit found ${total} ${total === 1 ? "issue" : "issues"}.`,
+    review: "This is the area flagged by the audit.",
+    count: (target: string, total: number) => total ? `We found ${total} ${total === 1 ? "issue" : "issues"} in ${target}. Let’s look at the evidence and what you can change.` : `The audit of ${target} didn’t flag any issues. Here’s the view we checked.`,
     file: (file: string, start: number, end: number) => `See ${file}, ${start === end ? `line ${start}` : `lines ${start} to ${end}`}.`,
     view: (view: View) => `See the ${view} screenshot.`,
   },
   hi: {
     opening: "ऑडिट का सारांश",
-    count: (target: string, total: number) => `${target} के ऑडिट में ${total} समस्याएँ मिलीं।`,
+    review: "ऑडिट ने इस हिस्से को चिह्नित किया है। पूरी जानकारी रिपोर्ट में देख सकते हैं।",
+    count: (target: string, total: number) => total ? `${target} की जाँच में ${total} समस्याएँ मिलीं। आइए देखें कि वे कहाँ हैं और क्या बदल सकते हैं।` : `${target} की जाँच में कोई समस्या नहीं मिली। यह वह दृश्य है जिसकी जाँच की गई।`,
     file: (file: string, start: number, end: number) => `${file} में ${start === end ? `पंक्ति ${start}` : `पंक्तियाँ ${start} से ${end}`} देखें।`,
     view: (view: View) => `${view === "mobile" ? "मोबाइल" : "डेस्कटॉप"} स्क्रीनशॉट देखें।`,
   },
   te: {
     opening: "ఆడిట్ సారాంశం",
-    count: (target: string, total: number) => `${target} ఆడిట్‌లో ${total} సమస్యలు కనిపించాయి.`,
+    review: "తనిఖీలో ఈ భాగాన్ని గుర్తించాం. పూర్తి వివరాలు నివేదికలో ఉన్నాయి.",
+    count: (target: string, total: number) => total ? `${target} తనిఖీలో ${total} సమస్యలు కనిపించాయి. అవి ఎక్కడున్నాయో, ఏ మార్పులు చేయవచ్చో చూద్దాం.` : `${target} తనిఖీలో సమస్యలు కనిపించలేదు. మనం తనిఖీ చేసిన దృశ్యం ఇదే.`,
     file: (file: string, start: number, end: number) => `${file}లో ${start === end ? `${start}వ పంక్తిని` : `${start} నుంచి ${end} వరకు పంక్తులను`} చూడండి.`,
     view: (view: View) => `${view === "mobile" ? "మొబైల్" : "డెస్క్‌టాప్"} స్క్రీన్‌షాట్ చూడండి.`,
   },
