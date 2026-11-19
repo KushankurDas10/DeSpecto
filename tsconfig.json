@@ -4,9 +4,9 @@
     "lib": [
       "dom",
       "dom.iterable",
+      "dom.asynciterable",
       "esnext"
     ],
-    "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
@@ -22,7 +22,8 @@
       {
         "name": "next"
       }
-    ]
+    ],
+    "allowJs": false
   },
   "include": [
     "next-env.d.ts",

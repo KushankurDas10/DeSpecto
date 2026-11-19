@@ -23,8 +23,10 @@ export async function auditRepository(target: Target, progress: Progress, read =
       const reviewed = await reviewSource(index, Math.max(3, maxFindings - findings.length));
       let added = 0;
       for (const item of reviewed) {
-        if (findings.some((other) => other.evidence.file === item.evidence.file
-          && other.evidence.lines[0] === item.evidence.lines[0])) continue;
+        if (item.source !== "repo") continue;
+        const { file, lines } = item.evidence;
+        if (findings.some((other) => other.source === "repo" && other.evidence.file === file
+          && other.evidence.lines[0] === lines[0])) continue;
         findings.push(item);
         added += 1;
       }

@@ -127,12 +127,13 @@ async function follow(id: string, job?: Job, visiblePanel?: ProgressPanel) {
         continue;
       }
       if (error instanceof RequestError && error.status === 404) {
-        const interrupted = saved && ["queued", "running"].includes(saved.status);
+        const interrupted = saved?.status === "queued" || saved?.status === "running";
         if (saved) saveAudit({ ...saved, status: "unavailable" });
+        const previousUrl = saved?.url;
         panel.fail(interrupted ? "Audit interrupted" : "Audit unavailable",
           interrupted ? "The server no longer has this run. Start a new audit for the same URL."
             : "This report could not be found on the current server.",
-          saved?.url ? [["Run again", () => startAudit(saved.url)], ["Back to workspace", () => newAudit()]]
+          previousUrl ? [["Run again", () => startAudit(previousUrl)], ["Back to workspace", () => newAudit()]]
             : [["Back to workspace", () => newAudit()]]);
       } else {
         panel.fail("Connection to audit lost", "Check that DeSpecto is running, then reconnect to this audit.",

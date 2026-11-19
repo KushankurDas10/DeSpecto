@@ -5,7 +5,7 @@ import { webAsset } from "../apps/api/web-assets.ts";
 interface FrameInput { scene: Scene; label: string; position: number; total: number }
 declare global {
   interface Window {
-    renderEvidence: typeof import("../apps/web/dom.ts").showSceneEvidence;
+    DespectoEvidence: Pick<typeof import("../apps/web/dom.ts"), "showSceneEvidence">;
     seekEvidence: (time: number) => void;
   }
 }
@@ -39,15 +39,12 @@ const layout = `<!doctype html>
 </html>`;
 
 export async function prepareFrame(page: Page) {
-  const [module, styles] = await Promise.all([webAsset("dom.js"), webAsset("style.css")]);
+  const [module, styles] = await Promise.all([webAsset("dom.js", "iife"), webAsset("style.css")]);
   if (!module || !styles) throw new Error("The walkthrough browser assets are unavailable.");
   await page.setContent(layout, { waitUntil: "domcontentloaded" });
   await page.addStyleTag({ content: styles.text.replace(/^@import[^\n]*\n/, "") });
-  const moduleUrl = `data:text/javascript;base64,${Buffer.from(module.text).toString("base64")}`;
-  await page.evaluate(async (url) => {
-    const { showSceneEvidence } = await import(url);
-    window.renderEvidence = showSceneEvidence;
-  }, moduleUrl);
+  // Load the renderer as a browser script so server bundlers do not rewrite an import from Playwright's page context.
+  await page.addScriptTag({ content: module.text });
 }
 
 export async function renderFrames(page: Page, input: FrameInput, save: (index: number, bytes: Buffer) => Promise<void>) {
@@ -60,7 +57,7 @@ export async function renderFrames(page: Page, input: FrameInput, save: (index: 
     const main = document.querySelector("main")!;
     main.replaceChildren();
     main.style.setProperty("--shot-height", `${Math.max(90, main.clientHeight - 32)}px`);
-    window.seekEvidence = window.renderEvidence(main, scene);
+    window.seekEvidence = window.DespectoEvidence.showSceneEvidence(main, scene);
     await Promise.all([document.fonts.ready, ...[...main.querySelectorAll("img")].map((image) => image.decode())]);
   }, input);
 

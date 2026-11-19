@@ -14,6 +14,8 @@ npm start
 
 Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The workspace includes public examples for both audit types. The website example can demonstrate a mobile layout fix using **Show fix**.
 
+`npm start` runs the Next.js development server. For a production build, run `npm run build` and then `npm run start:production`. Use one Node process for the audit queue.
+
 ## What the checks cover
 
 - **Repository** · Checks relative README links, package commands in their documented working directory, and script entry points. It flags missing root READMEs for runnable packages. Git reads a bounded set of files from the default branch without checking out or running submitted code.
@@ -24,7 +26,7 @@ Completed reports, fix previews, and screenshots are saved in the ignored `.desp
 
 ## AI review and narration
 
-Create a local `.env` at the repository root. For AI review, get an [OpenRouter API key](https://openrouter.ai/settings/keys) with credit for [Qwen3.6](https://openrouter.ai/qwen/qwen3.6-35b-a3b). For narration, get a [Gemini API key](https://aistudio.google.com/api-keys) in Google AI Studio. Gemini 3.8 Flash TTS supports English, Hindi, and Telugu on the [Gemini free tier](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.8-flash-tts), subject to project limits.
+Copy `.env.example` to `.env` at the repository root. For AI review, get an [OpenRouter API key](https://openrouter.ai/settings/keys) with credit for [Qwen3.6](https://openrouter.ai/qwen/qwen3.6-35b-a3b). For narration, get a [Gemini API key](https://aistudio.google.com/api-keys) in Google AI Studio. Gemini 3.8 Flash TTS supports English, Hindi, and Telugu on the [Gemini free tier](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.8-flash-tts), subject to project limits.
 
 ```dotenv
 AI_BASE_URL=https://openrouter.ai/api/v1
@@ -32,6 +34,7 @@ AI_API_KEY=your_openrouter_key
 AI_MODEL=qwen/qwen3.6-35b-a3b
 AI_VISION_MODEL=qwen/qwen3.6-35b-a3b
 GEMINI_API_KEY=your_google_ai_studio_key
+GEMINI_TTS_MODEL=gemini-3.8-flash-tts
 ```
 
 Run `npm run check:providers -- --speech` to verify narration alone. Run `npm run check:providers` to also verify text and image review. These commands send short requests to the configured providers. Restart the app after changing `.env`.

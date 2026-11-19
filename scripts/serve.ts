@@ -4,7 +4,8 @@ import { createRequire } from "node:module";
 const next = createRequire(import.meta.url).resolve("next/dist/bin/next");
 const command = process.argv.includes("--production") ? "start" : "dev";
 const child = spawn(process.execPath, [
-  next, command, "--hostname", process.env.HOST ?? "127.0.0.1",
+  next, command, ...(command === "dev" ? ["--webpack"] : []),
+  "--hostname", process.env.HOST ?? "127.0.0.1",
   "--port", process.env.PORT ?? "3000",
 ], { stdio: "inherit" });
 child.on("error", (error) => {

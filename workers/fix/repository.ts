@@ -23,8 +23,9 @@ export function previewRepositoryFix(_target: Target | null, item: Finding, { in
   const files = new Map(index.files);
   files.set(file, lines.join("\n") + (terminated ? "\n" : ""));
   const verification = checkRepository({ ...index, files });
-  const verified = before !== after && !verification.findings.some(({ title, explanation, evidence }) =>
-    title === item.title && explanation === item.explanation && evidence.file === file && evidence.lines[0] === line);
+  const verified = before !== after && !verification.findings.some(({ source, title, explanation, evidence }) =>
+    source === "repo" && title === item.title && explanation === item.explanation
+    && evidence.file === file && evidence.lines[0] === line);
   const start = Math.max(0, offset - 3);
   const end = Math.min(lines.length, offset + 4);
   const patch = [

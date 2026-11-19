@@ -10,7 +10,7 @@ const modules: Readonly<Record<string, string>> = {
   "export.js": "export.ts",
 };
 
-export async function webAsset(name: string) {
+export async function webAsset(name: string, format: "esm" | "iife" = "esm") {
   const directory = resolve(process.cwd(), "apps/web");
   if (name === "style.css") {
     return { text: await readFile(resolve(directory, name), "utf8"), type: "text/css; charset=utf-8" };
@@ -19,7 +19,8 @@ export async function webAsset(name: string) {
   const output = await build({
     entryPoints: [resolve(directory, modules[name])],
     bundle: true,
-    format: "esm",
+    format,
+    ...(format === "iife" && { globalName: "DespectoEvidence" }),
     platform: "browser",
     write: false,
   });
