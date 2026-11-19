@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 330 260" fill="none">
+  <defs>
+    <g id="beetle" stroke="#273834" stroke-linecap="round" stroke-linejoin="round">
+      <g stroke-width="7">
+        <path d="M128 174q-7 24-27 29m39-20q4 25-12 34m32-40q15 24 13 35"/>
+        <path d="M103 204q-11-5-22 1-7 5 1 7 18 2 25-7m20 12q-11-3-20 5-4 5 4 6 14 0 21-10m39-4q11-7 24-1 6 4 1 8-13 4-25-4" fill="#273834"/>
+        <path d="M98 135q-28 2-35-17m119 23q27 6 42-19"/>
+        <path d="M66 124q-13 3-20-10-3-8 2-10l10 9q-8-19-2-20 4-2 10 13-2-13 3-14 7 0 5 19z" fill="#f4d6ac" stroke-width="4"/>
+        <path d="M126 72q-6-26-19-34m53 32q13-27 29-28" fill="none" stroke-width="5"/>
+        <circle cx="106" cy="36" r="5" fill="#273834"/><circle cx="191" cy="40" r="5" fill="#273834"/>
+        <path d="M90 138c-3-40 17-72 49-75 35-5 64 26 65 63 2 35-21 61-56 67-29 5-54-16-58-55z" fill="#adc6b1" stroke-width="5"/>
+        <path d="M91 138q31-20 59-65-6 52-24 85-10 19-24 19-10-11-11-39z" fill="#729981" stroke-width="4"/>
+        <path d="M102 140l20-19m-15 37 8-11" stroke-width="3"/>
+        <path d="M139 100q2-12 10-13m12-3q9-3 15 5" stroke-width="3"/>
+        <ellipse cx="151" cy="108" rx="6" ry="10" fill="#273834" stroke="none"/><ellipse cx="176" cy="101" rx="6" ry="10" fill="#273834" stroke="none"/>
+        <path d="M156 127q10 8 18-4" stroke-width="4"/>
+        <path d="M208 116l-14 25q-3 6 4 10t11-3l13-24" fill="#d9a475" stroke-width="4"/>
+        <circle cx="234" cy="88" r="38" fill="#edc697" stroke-width="5"/>
+        <circle cx="234" cy="88" r="29" fill="#dcebe6" stroke-width="3"/>
+        <path d="M214 84q4-15 18-17m-14 29 8-12" stroke="#fff" stroke-width="5"/>
+        <path d="M196 136q-7-3-6-9 1-4 6-2l7 4q-5-10 0-11 5-2 12 10 1 6-5 11-8 6-14-3z" fill="#f4d6ac" stroke-width="3"/>
+      </g>
+    </g>
+    <filter id="edge" x="-15%" y="-15%" width="135%" height="140%">
+      <feMorphology in="SourceAlpha" operator="dilate" radius="5" result="rim"/>
+      <feOffset in="rim" dy="3" result="offset"/><feFlood flood-color="#35433c" flood-opacity=".2"/><feComposite in2="offset" operator="in" result="shadow"/>
+      <feFlood flood-color="#fffcf5"/><feComposite in2="rim" operator="in" result="paper"/>
+      <feMerge><feMergeNode in="shadow"/><feMergeNode in="paper"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <use href="#beetle" filter="url(#edge)"/>
+</svg>

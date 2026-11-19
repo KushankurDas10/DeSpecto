@@ -9,7 +9,7 @@ export default async function Page() {
     <header className="topbar">
       <div className="topbar-inner">
         <a className="brand" href="/" aria-label="DeSpecto home">
-          <img className="brand-mark" src="/favicon.ico" width={32} height={32} alt="" />
+          <img className="brand-mark" src="/inspector.svg" width={50} height={40} alt="" />
           <span>DeSpecto</span>
         </a>
         <a className="source-link" href="https://github.com/KushankurDas10/DeSpecto" target="_blank" rel="noopener noreferrer">
@@ -21,8 +21,8 @@ export default async function Page() {
       <section id="home">
         <div className="workspace-intro">
           <div className="workspace-heading">
-            <h1>Every finding<br />has a source.</h1>
-            <p>Check a repository or website, inspect the evidence, and turn the audit into a narrated walkthrough.</p>
+            <h1>Take a closer<br />look.</h1>
+            <p>Audit a website or GitHub repository. See exactly where an issue shows up, then watch the narrated walkthrough.</p>
             <form id="audit-form">
               <label htmlFor="target">Public GitHub or website URL</label>
               <div className="target-control">
@@ -31,13 +31,15 @@ export default async function Page() {
               </div>
             </form>
           </div>
-          <figure className="evidence-sample">
-            <div className="sample-page">
-              <div className="sample-file"><span>lit/lit</span><span>README.md</span></div>
-              <pre><code><span className="sample-line">80</span>{"  Internal packages\n"}<span className="sample-line">81</span>{"  "}<mark>./packages/@lit-internal/scripts</mark></code></pre>
-              <figcaption><span className="sample-pin" aria-hidden="true"></span><strong>Broken README link</strong><span>That path is missing from the audited commit.</span></figcaption>
+          <div className="inspection-board" aria-hidden="true">
+            <div className="specimen-sheet">
+              <div className="specimen-tab">README.md</div>
+              <div className="specimen-code"><b>81</b> <s>./packages/scripts</s></div>
+              <div className="specimen-code"><b>82</b> <i /></div>
             </div>
-          </figure>
+            <img className="hero-inspector" src="/inspector.svg" alt="" width={330} height={260} />
+            <img className="folder-sticker" src="/case-folder.svg" alt="" width={74} height={74} />
+          </div>
         </div>
         <section className="examples" aria-labelledby="examples-title">
           <h2 id="examples-title">Try an example</h2>
