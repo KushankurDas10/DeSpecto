@@ -68,9 +68,35 @@ img { max-width: 100%; }
   .folder-sticker { transition: transform 220ms ease; }
   @keyframes inspect { 0% { transform: translateY(7px) rotate(1deg); } 45% { transform: translateY(-4px) rotate(7deg); } }
 }
-.boot-meter { position: fixed; inset: 0 0 auto; height: 3px; z-index: 5; overflow: hidden; pointer-events: none; }
-.boot-meter span { display: block; width: 35%; height: 100%; background: var(--accent); animation: boot-scan 1.1s ease-in-out infinite; }
-@keyframes boot-scan { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+.boot-curtain { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: var(--background); }
+.boot-curtain[data-state="leaving"] { pointer-events: none; animation: desk-open 620ms ease-in-out both; }
+.boot-note { text-align: center; color: var(--ink); }
+.boot-note p { font: 400 clamp(21px, 4vw, 27px)/1.25 var(--display); letter-spacing: -.04em; }
+.boot-scene { position: relative; width: 228px; height: 133px; margin: 0 auto 8px; }
+.boot-scene::before { content: ""; position: absolute; inset: 19px 24px 7px 37px; border-radius: 50%; background: #e3ebdf; transform: rotate(-8deg); }
+.boot-folder, .boot-beetle { position: absolute; object-fit: contain; }
+.boot-folder { bottom: 2px; right: 15px; transform: rotate(-10deg); }
+.boot-beetle { left: 23px; bottom: 8px; transform-origin: 45% 90%; }
+.clue-trail { position: absolute; bottom: 18px; left: 0; display: flex; gap: 5px; transform: rotate(-10deg); }
+.clue-trail i { width: 6px; height: 4px; border-radius: 50%; background: #8fa891; }
+.clue-trail i:nth-child(2) { margin-top: 3px; }
+@keyframes desk-open { 0%, 30% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .boot-beetle { animation: beetle-step 920ms ease-in-out infinite; }
+  .clue-trail i { animation: clue-step 920ms ease-in-out infinite alternate; }
+  .clue-trail i:nth-child(2) { animation-delay: 140ms; }
+  .clue-trail i:nth-child(3) { animation-delay: 280ms; }
+  @keyframes beetle-step { 0%, 100% { transform: rotate(-4deg); } 50% { transform: translate(4px, -6px) rotate(3deg); } }
+  @keyframes clue-step { to { opacity: .3; } }
+  .workspace-intro:has(#target:focus-visible) .hero-inspector { transform: translate(-5px, -2px) rotate(-3deg); }
+  .hero-inspector, .specimen-sheet, .example-icon { transition: transform 260ms ease-out; }
+  .example:is(:hover, :focus-visible) .example-icon { transform: rotate(-8deg) translateY(-2px); }
+  .inspection-board:hover .specimen-sheet { transform: translateY(-4px) rotate(-6deg); }
+  .active-card:has(.audit-badge[data-state="running"])::before,
+  .player-slate:has(progress:not([hidden])) .slate-mark { animation: beetle-step 1.8s ease-in-out 2; }
+}
+.target-control:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--blue-soft); }
+.app-content:focus-within + .boot-curtain[data-state="leaving"] { visibility: hidden; }
 .workspace-error { position: fixed; bottom: 1rem; left: 1rem; padding: 12px 18px; background: var(--surface); border: 1px solid var(--danger); }
 .examples { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 27px; }
 .examples h2 { margin-right: 8px; font-size: 14px; font-weight: 700; color: var(--muted); }
@@ -246,6 +272,6 @@ progress { width: 100%; height: 9px; accent-color: var(--accent); }
   .player-screen:has(.player-slate:not([hidden])) { min-height: 173px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .boot-meter span, .audit-badge[data-state="running"]::before { animation: none; }
+  .boot-curtain[data-state="leaving"], .audit-badge[data-state="running"]::before { animation: none; }
   .audit-meter progress::-webkit-progress-value { transition: none; }
 }

@@ -4,7 +4,7 @@ import { ClientWorkspace } from "./workspace.tsx";
 export default async function Page() {
   await headers();
   return (
-    <>
+    <ClientWorkspace>
 
     <header className="topbar">
       <div className="topbar-inner">
@@ -61,7 +61,6 @@ export default async function Page() {
       <section id="report" hidden></section>
     </main>
 
-      <ClientWorkspace />
-    </>
+    </ClientWorkspace>
   );
 }
