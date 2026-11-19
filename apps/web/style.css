@@ -287,3 +287,20 @@ progress { width: 100%; height: 9px; accent-color: var(--accent); }
   .boot-curtain[data-state="leaving"], .audit-badge[data-state="running"]::before { animation: none; }
   .audit-meter progress::-webkit-progress-value { transition: none; }
 }
+
+.sample-report { max-width: 880px; }
+.sample-report header { margin: 26px 0 18px; }
+.sample-report video { display: block; width: 100%; aspect-ratio: 16/9; background: var(--night); border-radius: 10px; object-fit: contain; }
+.sample-report > .button { margin: 12px 0 24px; }
+.sample-report figure img { display: block; width: 100%; border: 1px solid var(--line); }
+.design-panel { margin-bottom: 18px; padding: 16px 20px; }
+.design-panel summary { cursor: pointer; font-weight: 700; }
+.design-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+.design-tools select { padding: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 6px; }
+.design-panel p { max-width: 75ch; margin: 4px 0 14px; }
+.concept-preview { padding: clamp(20px, 4vw, 44px); margin: 12px 0 18px; border-left: 8px solid; overflow-wrap: anywhere; }
+.concept-preview h3 { font-size: clamp(24px, 4vw, 44px); line-height: 1.12; }
+.concept-preview.editorial h3 { font-family: var(--display); }
+.concept-preview.playful { border-radius: 26px 8px; border-bottom: 5px solid; }
+.concept-preview.minimal { text-align: center; border-left: 0; border-top: 2px solid; }
+.concept-preview.minimal p { margin-inline: auto; }

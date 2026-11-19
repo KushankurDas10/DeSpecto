@@ -1,0 +1,11 @@
+{
+  "target": {
+    "source": "website",
+    "url": "https://info.cern.ch/",
+    "label": "info.cern.ch"
+  },
+  "title": "Missing mobile viewport setting",
+  "explanation": "Mobile browsers can scale down the desktop layout, making text and controls harder to use.",
+  "summary": "The original check passed after applying the preview.",
+  "verified": true
+}

@@ -42,6 +42,7 @@ export default async function Page() {
           </div>
         </div>
         <section className="examples" aria-labelledby="examples-title">
+          <a className="button" href="/sample">Watch sample audit</a>
           <h2 id="examples-title">Try an example</h2>
           <button className="example" type="button" aria-label="Audit example repository lit/lit" data-example="https://github.com/lit/lit">
             <span className="example-icon" aria-hidden="true">⌘</span><span><strong>lit/lit</strong><small>GitHub repository</small></span>
