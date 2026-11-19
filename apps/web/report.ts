@@ -1,5 +1,6 @@
 import { fixSchema, type CompletedJob, type Finding, type Report } from "../../shared/contracts.ts";
 import { button, element, errorMessage, request, screenshot, showEvidence } from "./dom.ts";
+import { designPanel } from "./design.ts";
 import { createWalkthrough } from "./walkthrough.ts";
 
 const severities = ["high", "medium", "low"];
@@ -25,7 +26,9 @@ export function showReport(container: HTMLElement, job: CompletedJob, onNewAudit
   const reportTab = button(`Findings (${result.findings.length})`, "", () => switchTo("findings"));
   const walkthroughTab = button("Walkthrough", "", () => switchTo("walkthrough"));
   tabs.append(reportTab, walkthroughTab);
-  container.replaceChildren(heading, tabs, contents);
+  container.replaceChildren(heading);
+  if (target.source === "website") container.append(designPanel(job.id));
+  container.append(tabs, contents);
 
   function switchTo(view: "findings" | "walkthrough") {
     const findingsVisible = view === "findings";

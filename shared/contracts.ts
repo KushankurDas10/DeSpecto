@@ -104,3 +104,11 @@ export type Walkthrough = z.infer<typeof walkthroughSchema>;
 export type Scene = Walkthrough["scenes"][number];
 export type ExportState = z.infer<typeof exportStateSchema>;
 export type Chapter = z.infer<typeof chapterSchema>;
+
+export const designDirection = z.enum(["editorial", "playful", "minimal"]);
+const designText = z.string().trim().min(1).max(420);
+export const designConcept = z.object({
+  headline: designText, purpose: designText, typography: designText, mobile: designText,
+  changes: z.array(z.object({ observation: designText, proposal: designText })).min(1).max(4),
+  paper: z.string().regex(/^#[0-9a-f]{6}$/i), accent: z.string().regex(/^#[0-9a-f]{6}$/i),
+});

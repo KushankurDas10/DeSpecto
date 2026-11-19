@@ -1,4 +1,5 @@
 import { auditInputSchema, languageSchema } from "../../shared/contracts.ts";
+import { redesignFor } from "../../workers/site-audit/design.ts";
 import { createQueue } from "./jobs.ts";
 import { openReportStore } from "./reports.ts";
 import { InputError } from "../../shared/target.ts";
@@ -25,6 +26,11 @@ export function createAuditHandler(queue = createQueue()) {
       if (request.method === "POST" && path === "/api/audits") {
         const input = await readBody(request);
         return send(202, queue.submit(input.url));
+      }
+      if (request.method === "POST" && audit?.[2] === "design") {
+        const job = queue.get(audit[1]);
+        if (job?.status !== "complete" || job.target.source !== "website") return send(404, { error: "Website report unavailable." });
+        return send(200, await redesignFor(job, url.searchParams.get("direction"), (name) => queue.asset(job.id, name)));
       }
       if (audit && /^export(?:\/(?:file|captions))?$/.test((audit[2] ?? ""))) {
         const [, id, action = ""] = audit;
