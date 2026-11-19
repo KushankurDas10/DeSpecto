@@ -71,11 +71,19 @@ export const walkthroughSchema = z.object({
     comparison: fixSchema.optional(),
   })),
 });
+const chapterSchema = z.object({
+  title: z.string(), start: z.number().nonnegative(), duration: z.number().positive(),
+  kind: z.enum(["overview", "finding", "comparison"]), findingId: z.string().optional(),
+});
+const exportProgress = z.object({ completed: integer, total: integer });
 export const exportStateSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("idle") }),
-  z.object({ status: z.literal("rendering"), completed: integer, total: integer }),
-  z.object({ status: z.literal("complete"), completed: integer, total: integer, narrated: integer }),
-  z.object({ status: z.literal("failed"), completed: integer, total: integer, error: z.string() }),
+  exportProgress.extend({ status: z.literal("rendering"), phase: z.enum(["script", "edit", "encode"]) }),
+  exportProgress.extend({
+    status: z.literal("complete"), narrated: integer, revision: z.string(),
+    duration: z.number().positive(), chapters: z.array(chapterSchema).min(1),
+  }),
+  exportProgress.extend({ status: z.literal("failed"), error: z.string() }),
 ]);
 
 export type Finding = z.output<typeof findingSchema>;
@@ -95,3 +103,4 @@ export type Language = z.infer<typeof languageSchema>;
 export type Walkthrough = z.infer<typeof walkthroughSchema>;
 export type Scene = Walkthrough["scenes"][number];
 export type ExportState = z.infer<typeof exportStateSchema>;
+export type Chapter = z.infer<typeof chapterSchema>;

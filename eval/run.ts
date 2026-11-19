@@ -102,7 +102,7 @@ async function audit(url: string) {
       const { scenes } = await json(`${path}/walkthrough?lang=${lang}`, walkthroughSchema);
       assert.equal(scenes.length, findings.length + 2);
       assert.equal(scenes.find(({ findingId }) => findingId === finding.id)?.language, lang);
-      assert.deepEqual(scenes.at(-1)?.comparison, fix);
+      assert.deepEqual(scenes.find(({ findingId, comparison }) => findingId === finding.id && comparison)?.comparison, fix);
     }
   }
   return findings;

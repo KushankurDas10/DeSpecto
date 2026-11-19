@@ -26,7 +26,7 @@ export function createAuditHandler(queue = createQueue()) {
         const input = await readBody(request);
         return send(202, queue.submit(input.url));
       }
-      if (audit && /^export(?:\/file)?$/.test((audit[2] ?? ""))) {
+      if (audit && /^export(?:\/(?:file|captions))?$/.test((audit[2] ?? ""))) {
         const [, id, action = ""] = audit;
         const job = queue.get(id);
         if (job?.status !== "complete") return send(404, { error: "Audit unavailable." });
@@ -35,11 +35,22 @@ export function createAuditHandler(queue = createQueue()) {
         if (request.method === "GET" && action === "export") {
           return send(200, entry?.state ?? { status: "idle" });
         }
-        if (request.method === "GET" && action === "export/file") {
-          if (!entry?.bytes) return send(404, { error: "Export unavailable. Create a new video." });
-          headers.set("Content-Disposition", `attachment; filename=despecto-${lang}.mp4`);
-          headers.set("Content-Length", String(entry.bytes.byteLength));
-          return send(200, entry.bytes, "video/mp4");
+        if ((request.method === "GET" || request.method === "HEAD") && action === "export/file") {
+          const revision = url.searchParams.get("revision");
+          if (!entry?.media || (revision !== null && revision !== entry.revision)) {
+            return send(404, { error: "Walkthrough unavailable. Create a new video." });
+          }
+          const name = job.target.label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 70);
+          const disposition = url.searchParams.get("play") === "1" ? "inline" : "attachment";
+          headers.set("Content-Disposition", disposition + '; filename="despecto-' + (name ? name + "-" : "") + lang + '.mp4"');
+          return videoResponse(request, headers, entry.media.bytes);
+        }
+        if (request.method === "GET" && action === "export/captions") {
+          const revision = url.searchParams.get("revision");
+          if (!entry?.media || (revision !== null && revision !== entry.revision)) {
+            return send(404, { error: "Walkthrough captions unavailable." });
+          }
+          return send(200, entry.media.captions, "text/vtt; charset=utf-8");
         }
         if (request.method === "POST" && action === "export") {
           return send(202, await exports.start(job, lang, (path) => queue.asset(id, path.slice(path.lastIndexOf("/") + 1))));
@@ -90,6 +101,28 @@ export function createAuditHandler(queue = createQueue()) {
       return send(500, { error: "Something went wrong. Please try again." });
     }
   };
+}
+
+function videoResponse(request: Request, headers: Headers, bytes: Uint8Array) {
+  headers.set("Accept-Ranges", "bytes");
+  headers.set("Content-Type", "video/mp4");
+  const length = bytes.byteLength;
+  const range = request.method === "GET" && request.headers.get("range");
+  if (!range) {
+    headers.set("Content-Length", String(length));
+    return new Response(request.method === "HEAD" ? null : Uint8Array.from(bytes), { headers });
+  }
+
+  const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+  const start = match?.[1] ? Number(match[1]) : Math.max(0, length - Number(match?.[2] ?? 0));
+  const end = match?.[1] && match[2] ? Math.min(Number(match[2]), length - 1) : length - 1;
+  if (!match || (!match[1] && !match[2]) || start > end) {
+    headers.set("Content-Range", "bytes */" + length);
+    return new Response(null, { status: 416, headers });
+  }
+  headers.set("Content-Range", "bytes " + start + "-" + end + "/" + length);
+  headers.set("Content-Length", String(end - start + 1));
+  return new Response(Uint8Array.from(bytes.subarray(start, end + 1)), { status: 206, headers });
 }
 
 function readLanguage(url: URL) {

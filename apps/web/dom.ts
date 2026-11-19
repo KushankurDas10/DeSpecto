@@ -113,10 +113,11 @@ export function showSceneEvidence(container: HTMLElement, scene: Scene, options?
   const { evidence, comparison } = scene;
   const visual = element("div", "scene-visual");
   container.append(visual);
+  const labels = { en: ["Before", "After"], hi: ["पहले", "बाद में"], te: ["ముందు", "తర్వాత"] }[scene.language];
   if (comparison?.kind === "screenshots" && evidence && "screenshot" in evidence) {
     visual.classList.add("scene-comparison");
-    const shots = ["Before", "After"].map((label) => {
-      const before = label === "Before";
+    const shots = labels.map((label, index) => {
+      const before = index === 0;
       const panel = element("figure");
       panel.append(element("figcaption", "", label));
       visual.append(panel);
@@ -133,8 +134,15 @@ export function showSceneEvidence(container: HTMLElement, scene: Scene, options?
     };
   }
   if (comparison?.kind === "diff") {
-    visual.append(element("pre", "patch", comparison.patch));
-    return () => {};
+    visual.classList.add("scene-comparison");
+    for (const [index, code] of [comparison.before, comparison.after].entries()) {
+      const panel = element("figure");
+      panel.append(element("figcaption", "", labels[index]), element("pre", "code-block code-frame", code));
+      visual.append(panel);
+    }
+    return (time: number) => {
+      visual.style.setProperty("--after-opacity", String(.42 + .58 * ease((time - .2) / .45)));
+    };
   }
   if (evidence && "screenshot" in evidence) {
     return camera(visual, evidence, evidence.box, evidence.box, "Page evidence");
