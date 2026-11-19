@@ -259,6 +259,10 @@ export function createWalkthrough(container: HTMLElement, job: CompletedJob) {
         const track = list.getBoundingClientRect();
         if (card.left < track.left) list.scrollLeft += card.left - track.left - 14;
         else if (card.right > track.right) list.scrollLeft += card.right - track.right + 14;
+        if (list.scrollHeight > list.clientHeight) {
+          if (card.top < track.top) list.scrollTop += card.top - track.top - 12;
+          else if (card.bottom > track.bottom) list.scrollTop += card.bottom - track.bottom + 12;
+        }
       } else if (!current) {
         row.removeAttribute("aria-current");
       }
