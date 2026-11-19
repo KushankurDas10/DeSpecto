@@ -56,6 +56,20 @@ export function inspectPage(page: Page, view: View, filter?: Filter) {
       return Number.isFinite(ratio) && Math.abs(Math.log(ratio)) > .12;
     }
 
+    function imageContext(element: Element) {
+      if (!(element instanceof HTMLImageElement)) return null;
+      const alt = element.alt.slice(0, 120);
+      const hints = [alt, element.id, element.className, element.parentElement?.className,
+        element.getAttribute("src")?.split("?")[0].split("/").pop()].join(" ");
+      const style = getComputedStyle(element);
+      const radius = style.borderTopLeftRadius;
+      const size = Math.min(element.clientWidth, element.clientHeight);
+      const round = radius.endsWith("%") ? parseFloat(radius) >= 45 : parseFloat(radius) >= size * .45;
+      const portrait = /avatar|profile|headshot|portrait|author.photo/i.test(hints)
+        || (round && size > 0 && size <= 256 && Math.abs(element.clientWidth - element.clientHeight) < size * .12);
+      return { alt, portrait, fit: style.objectFit, naturalWidth: element.naturalWidth, naturalHeight: element.naturalHeight };
+    }
+
     const issues: Issue[] = [];
     function add(element: Element | null | undefined, rule: SiteRule, details: IssueDetails, repair?: WebsiteChange | false | "") {
       if (issues.length >= limit || (filter && rule !== filter.rule)) return;
@@ -178,7 +192,7 @@ export function inspectPage(page: Page, view: View, filter?: Filter) {
       .slice(0, 400).flatMap((element) => {
         const bounds = box(element);
         return bounds && bounds.w >= 30 && bounds.h >= 15
-          ? [{ selector: selector(element), box: bounds, tag: element.localName, cropped: cropped(element) }] : [];
+          ? [{ selector: selector(element), box: bounds, tag: element.localName, cropped: cropped(element), image: imageContext(element) }] : [];
       }).slice(0, 25);
     const target = filter?.targetSelector && document.querySelector(filter.targetSelector);
     return { issues, regions, width, height, viewportHeight, truncated: fullHeight > height,
