@@ -18,18 +18,18 @@ const layout = `<!doctype html>
 <html lang="en">
 <meta charset="utf-8">
 <style>
-  html { color-scheme: dark; background: #141526; }
-  body { background: #141526; color: #faf8ff; font: 20px "Segoe UI", sans-serif; }
-  article { display: grid; grid-template-rows: 32px auto minmax(0, 1fr) 26px; gap: 15px; width: 1280px; height: 720px; padding: 34px 56px 28px; --line: #51476a; --muted: #d4c9ea; --night: #25223b; }
-  header, footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; color: #d4c9ea; font: 500 15px Consolas, monospace; }
-  header strong { border-left: 3px solid #c5b1ff; padding-left: 10px; color: #eee6ff; }
+  html { color-scheme: dark; background: #22332d; }
+  body { background: #22332d; color: #f6f8ef; font: 20px "Segoe UI", sans-serif; }
+  article { display: grid; grid-template-rows: 32px auto minmax(0, 1fr) 26px; gap: 15px; width: 1280px; height: 720px; padding: 34px 56px 28px; --line: #52675a; --muted: #cbdacd; --night: #2c4037; }
+  header, footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; color: #cbdacd; font: 500 15px Consolas, monospace; }
+  header strong { border-left: 3px solid #acccb2; padding-left: 10px; color: #ecf4e8; }
   header span, footer span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  footer { border-top: 1px solid #51476a; padding-top: 10px; }
+  footer { border-top: 1px solid #52675a; padding-top: 10px; }
   h1 { margin: 0; font-size: 43px; line-height: 1.14; letter-spacing: -.035em; overflow-wrap: anywhere; font-weight: 650; }
   main { display: grid; place-items: center; overflow: hidden; min-width: 0; }
   article .motion-frame { width: min(100%, 900px); max-height: var(--shot-height); }
   article .motion-frame.mobile { max-width: 360px; }
-  article .motion-highlight { border-color: #e5d2ff; background: #b985ff33; box-shadow: 0 0 0 2px #482683; }
+  article .motion-highlight { border-color: #ffe0a3; background: #dfb56d33; box-shadow: 0 0 0 2px #604e2e; }
   article .code-block, article .patch { font-size: 21px; max-height: var(--shot-height); white-space: pre-wrap; overflow-wrap: anywhere; }
   article .scene-comparison .code-block { font-size: 17px; }
   .scene-comparison .code-frame { margin: 0; padding: 13px 16px; }

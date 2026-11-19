@@ -126,8 +126,8 @@ async function render(job: CompletedJob, language: Language, script: Promise<Wal
         await soundtrack.writeFile(segment);
         const filters = [
           "fps=24", "tpad=stop_mode=clone:stop_duration=" + duration,
-          ...(index === 0 ? [] : ["fade=t=in:d=0.24:color=0x141526"]),
-          "fade=t=out:d=0.2:st=" + (duration - 0.2) + ":color=0x141526",
+          ...(index === 0 ? [] : ["fade=t=in:d=0.24:color=0x22332d"]),
+          "fade=t=out:d=0.2:st=" + (duration - 0.2) + ":color=0x22332d",
         ];
         await ffmpeg([
           "-framerate", String(motionRate), "-i", framePrefix + "%02d.png", "-vf", filters.join(","),
