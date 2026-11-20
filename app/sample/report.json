@@ -1,11 +1,60 @@
 {
+  "id": "sample-cern",
   "target": {
     "source": "website",
     "url": "https://info.cern.ch/",
     "label": "info.cern.ch"
   },
-  "title": "Missing mobile viewport setting",
-  "explanation": "Mobile browsers can scale down the desktop layout, making text and controls harder to use.",
-  "summary": "The original check passed after applying the preview.",
-  "verified": true
+  "status": "complete",
+  "stage": "Complete",
+  "progress": 100,
+  "createdAt": "2026-11-19",
+  "result": {
+    "findings": [
+      {
+        "id": "mobile-viewport",
+        "source": "website",
+        "type": "visual_issue",
+        "severity": "medium",
+        "title": "Missing mobile viewport setting",
+        "explanation": "Mobile browsers can scale down the desktop layout, making text and controls harder to use.",
+        "fixAvailable": true,
+        "fix": {
+          "kind": "screenshots",
+          "verified": true,
+          "summary": "The original check passed after applying the preview.",
+          "before": "/sample/before.jpg",
+          "after": "/sample/after.jpg",
+          "beforeSize": {
+            "width": 980,
+            "height": 2121
+          },
+          "afterSize": {
+            "width": 390,
+            "height": 844
+          }
+        },
+        "evidence": {
+          "view": "mobile",
+          "screenshot": "/sample/before.jpg",
+          "width": 980,
+          "height": 2121
+        }
+      }
+    ],
+    "screenshots": [
+      {
+        "view": "desktop",
+        "url": "/sample/desktop.jpg",
+        "width": 1440,
+        "height": 960
+      },
+      {
+        "view": "mobile",
+        "url": "/sample/before.jpg",
+        "width": 980,
+        "height": 2121
+      }
+    ]
+  }
 }

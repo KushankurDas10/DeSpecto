@@ -113,3 +113,5 @@ export const designConcept = z.object({
   changes: z.array(z.object({ observation: designText, proposal: designText })).min(1).max(4),
   paper: z.string().regex(/^#[0-9a-f]{6}$/i), accent: z.string().regex(/^#[0-9a-f]{6}$/i),
 });
+
+export type DesignPresets = Record<z.infer<typeof designDirection>, z.infer<typeof designConcept>>;

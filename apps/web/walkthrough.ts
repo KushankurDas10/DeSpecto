@@ -6,9 +6,10 @@ type Cut = Extract<ExportState, { status: "complete" }>;
 const languageNames = { en: "English", hi: "Hindi", te: "Telugu" } satisfies Record<Language, string>;
 const timecode = (seconds: number) => Math.floor(seconds / 60) + ":" + String(Math.floor(seconds) % 60).padStart(2, "0");
 type Media = ReturnType<ReturnType<typeof videoExport>["media"]>;
+export type Recording = { cut: Cut; language: Language; media: Media };
 let selectedLanguage: Language = "en";
 
-export function createWalkthrough(container: HTMLElement, job: CompletedJob) {
+export function createWalkthrough(container: HTMLElement, job: CompletedJob, recording?: Recording) {
   const player = element("section", "card player");
   player.setAttribute("aria-labelledby", "walkthrough-title");
   const toolbar = element("header", "player-toolbar");
@@ -21,7 +22,8 @@ export function createWalkthrough(container: HTMLElement, job: CompletedJob) {
     option.value = code;
     language.append(option);
   }
-  language.value = selectedLanguage;
+  language.value = recording?.language ?? selectedLanguage;
+  language.disabled = Boolean(recording);
   languageLabel.append(language);
   const download = element("a", "button primary", "Download MP4");
   download.hidden = true;
@@ -102,6 +104,13 @@ export function createWalkthrough(container: HTMLElement, job: CompletedJob) {
     controller.abort();
     controller = new AbortController();
     const { signal } = controller;
+    if (recording) {
+      releaseVideo();
+      showVideo(recording.cut, recording.language, recording.media);
+      download.download = "despecto-sample.mp4";
+      drawChapters();
+      return;
+    }
     const narration = selectedLanguage;
     const exporter = videoExport(job, narration);
     releaseVideo();
@@ -181,7 +190,7 @@ export function createWalkthrough(container: HTMLElement, job: CompletedJob) {
         const row = element("li", "chapter");
         const seek = button("", "chapter-seek", () => jumpTo(chapter));
         seek.append(element("span", "chapter-time", timecode(chapter.start)), element("span", "", chapter.title));
-        seek.lang = selectedLanguage;
+        seek.lang = recording?.language ?? selectedLanguage;
         row.append(seek);
         if (chapter.kind === "finding") {
           const item = job.result.findings.find(({ id }) => id === chapter.findingId);

@@ -52,3 +52,5 @@ Install FFmpeg with H.264 support and make it available on `PATH`, or set `FFMPE
 Run `npm run evaluate` for the built-in baseline. The suite completed on 10 public GitHub repositories and 5 public websites. It checked screenshot coordinates, confirmed that the W3C accessibility examples produced different image findings, rechecked the demo website's fix, and verified that Git accepts a generated README patch. Provider checks run separately through `npm run check:providers`.
 
 For the demo, audit the GitHub example and open a finding's source link. Audit the website example, open **Walkthrough**, select Telugu, then return to the finding and choose **Show fix** to compare the original mobile viewport against the rechecked preview.
+
+The home page’s **Watch sample audit** opens a recorded CERN audit in the shared report, player and redesign studio. Keep the sample in sync with every audit redesign. Refresh its saved evidence, design examples and recording whenever the illustrated finding or walkthrough changes.

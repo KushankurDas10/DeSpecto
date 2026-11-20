@@ -1,11 +1,11 @@
-import { fixSchema, type CompletedJob, type Finding, type Report } from "../../shared/contracts.ts";
+import { fixSchema, type DesignPresets, type CompletedJob, type Finding, type Report } from "../../shared/contracts.ts";
 import { button, element, errorMessage, request, screenshot, showEvidence } from "./dom.ts";
 import { designPanel } from "./design.ts";
-import { createWalkthrough } from "./walkthrough.ts";
+import { createWalkthrough, type Recording } from "./walkthrough.ts";
 
 const severities = ["high", "medium", "low"];
 
-export function showReport(container: HTMLElement, job: CompletedJob, onNewAudit: () => void) {
+export function showReport(container: HTMLElement, job: CompletedJob, onNewAudit: () => void, sample?: { recording: Recording; designs: DesignPresets }) {
   const { target, result } = job;
   const heading = element("header", "report-heading");
   const text = element("div");
@@ -15,7 +15,7 @@ export function showReport(container: HTMLElement, job: CompletedJob, onNewAudit
   link.href = target.url;
   link.target = "_blank";
   link.rel = "noopener noreferrer";
-  text.append(element("span", "eyebrow", target.source === "repo" ? "Repository audit" : "Website audit"), title, link);
+  text.append(element("span", "eyebrow", sample ? "Sample website audit" : target.source === "repo" ? "Repository audit" : "Website audit"), title, link);
   for (const note of result.notes ?? []) text.append(element("p", "report-notes", note));
   const counts = element("div", "report-counts");
   for (const severity of severities) {
@@ -33,7 +33,7 @@ export function showReport(container: HTMLElement, job: CompletedJob, onNewAudit
   const walkthroughTab = button("Walkthrough", "", () => switchTo("walkthrough"));
   tabs.append(reportTab, walkthroughTab);
   container.replaceChildren(heading);
-  if (target.source === "website") tabs.append(designPanel(job));
+  if (target.source === "website") tabs.append(designPanel(job, sample?.designs));
   container.append(tabs, contents);
 
   function switchTo(view: "findings" | "walkthrough") {
@@ -44,10 +44,10 @@ export function showReport(container: HTMLElement, job: CompletedJob, onNewAudit
     disposeWalkthrough?.();
     disposeWalkthrough = undefined;
     if (findingsVisible) renderFindings(contents, job);
-    else disposeWalkthrough = createWalkthrough(contents, job);
+    else disposeWalkthrough = createWalkthrough(contents, job, sample?.recording);
   }
 
-  switchTo("findings");
+  switchTo(sample ? "walkthrough" : "findings");
   title.focus({ preventScroll: true });
   return () => disposeWalkthrough?.();
 }

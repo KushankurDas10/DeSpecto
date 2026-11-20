@@ -1,7 +1,7 @@
-import { designConcept, designDirection, type CompletedJob } from "../../shared/contracts.ts";
+import { designConcept, designDirection, type DesignPresets, type CompletedJob } from "../../shared/contracts.ts";
 import { button, element, errorMessage, request } from "./dom.ts";
 
-export function designPanel(job: CompletedJob) {
+export function designPanel(job: CompletedJob, presets?: DesignPresets) {
   const host = element("div", "studio-launch");
   const dialog = element("dialog", "design-drawer");
   const header = element("header", "drawer-header");
@@ -22,7 +22,7 @@ export function designPanel(job: CompletedJob) {
   const notes = element("div", "design-notes");
   const modes = ["Live site", "Saved capture", "Redesign"] as const;
   type Mode = typeof modes[number];
-  let active: Mode = "Live site";
+  let active: Mode = presets ? "Saved capture" : "Live site";
   let available = false;
   let requestController: AbortController | undefined;
   const buttons = modes.map(mode => button(mode, "", () => display(mode)));
@@ -37,13 +37,13 @@ export function designPanel(job: CompletedJob) {
   external.rel = "noopener noreferrer";
   tabs.append(...buttons, width);
   const help = element("p", "studio-hint", "If the site blocks embedded previews, select Saved capture or open the original site.");
-  const generate = button("Generate redesign", "button primary", async () => {
+  const generate = button(presets ? "Preview sample redesign" : "Generate redesign", "button primary", async () => {
     const controller = new AbortController();
     requestController = controller;
     generate.disabled = select.disabled = true;
     status.textContent = "Designing from the audited screenshots…";
     try {
-      const concept = await request("/api/audits/" + job.id + "/design?direction=" + select.value, designConcept, { method: "POST", signal: controller.signal });
+      const concept = presets ? presets[designDirection.parse(select.value)] : await request("/api/audits/" + job.id + "/design?direction=" + select.value, designConcept, { method: "POST", signal: controller.signal });
       if (controller.signal.aborted) return;
       preview.className = "site-concept " + select.value;
       preview.style.backgroundColor = concept.paper;
