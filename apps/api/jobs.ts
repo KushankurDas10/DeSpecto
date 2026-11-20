@@ -3,11 +3,14 @@ import { InputError, parseTarget } from "../../shared/target.ts";
 import { auditRepository } from "../../workers/repo-audit/index.ts";
 import { maxReports } from "./reports.ts";
 
+import { withBrowser, withPage, capturePage } from "../../workers/site-audit/browser.ts";
+import { inspectPage } from "../../workers/site-audit/inspect.ts";
+import { captureDesignSource } from "../../workers/site-audit/design-source.ts";
 import { auditWebsite } from "../../workers/site-audit/index.ts";
 import { previewRepositoryFix } from "../../workers/fix/repository.ts";
 import { previewWebsiteFix } from "../../workers/fix/website.ts";
 import type { AuditContext, Auditor, FixRecipe } from "../../shared/audit.ts";
-import type { CompletedJob, Fix, Job } from "../../shared/contracts.ts";
+import type { CompletedJob, DesignSource, Fix, Job } from "../../shared/contracts.ts";
 import type { ReportStore, SavedReport } from "./reports.ts";
 
 interface JobRecord {
@@ -15,6 +18,7 @@ interface JobRecord {
   fixes?: Map<string, FixRecipe>;
   assets: Map<string, Buffer>;
   assetBytes: number;
+  preparingSource?: Promise<DesignSource>;
   removing?: Promise<void>;
   pendingFixes: Map<string, Promise<Fix>>;
 }
@@ -39,7 +43,7 @@ export function createQueue(store?: ReportStore) {
     if (pending.length >= 8) throw new InputError("The audit queue is full. Try again in a moment.");
     if (records.size >= maxReports) {
       const oldest = [...records].find(([, record]) =>
-        ["complete", "failed"].includes(record.job.status) && record.pendingFixes.size === 0 && !record.removing);
+        ["complete", "failed"].includes(record.job.status) && record.pendingFixes.size === 0 && !record.removing && !record.preparingSource);
       if (!oldest) throw new InputError("The audit queue is full. Try again in a moment.");
       records.delete(oldest[0]);
       void store?.remove(oldest[0]).catch((error) => console.warn(error.message));
@@ -136,10 +140,30 @@ export function createQueue(store?: ReportStore) {
     }
   }
 
+  async function designSource(id: string) {
+    const record = records.get(id);
+    if (!record || record.job.status !== "complete" || record.job.target.source !== "website" || record.removing) {
+      throw new InputError("The saved website report is unavailable.");
+    }
+    const job = record.job;
+    if (job.result.designSource) return job.result.designSource;
+    // Older reports contain only screenshots. Capture the element bounds and their matching pixels together.
+    record.preparingSource ??= withBrowser(job.target, browser => withPage(browser, job.target.url, "desktop", async page => {
+      const { width, height } = await inspectPage(page, "desktop");
+      const bytes = await capturePage(page, { width, height });
+      const url = auditContext(record).asset("redesign.jpg", bytes);
+      const source = await captureDesignSource(page, { width, height }, url);
+      job.result.designSource = source;
+      await persist({ job, assets: record.assets, fixes: record.fixes ?? new Map() });
+      return source;
+    })).finally(() => { record.preparingSource = undefined; });
+    return record.preparingSource;
+  }
+
   async function remove(id: string) {
     const record = records.get(id);
     if (!record) return;
-    if (record.job.status === "running" || record.job.status === "queued" || record.pendingFixes.size) {
+    if (record.job.status === "running" || record.job.status === "queued" || record.pendingFixes.size || record.preparingSource) {
       throw new InputError("This audit is still processing. Remove it after it finishes.");
     }
     // Block new fix writes until the snapshot has been removed, including during a concurrent retry.
@@ -151,7 +175,7 @@ export function createQueue(store?: ReportStore) {
   }
 
   return {
-    submit, fix, remove,
+    submit, fix, remove, designSource,
     get: (id: string) => records.get(id)?.job,
     asset: (id: string, name: string) => records.get(id)?.assets.get(name),
   };

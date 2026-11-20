@@ -35,7 +35,7 @@ export function createAuditHandler(queue = createQueue(), exports = createExport
       if (request.method === "POST" && audit?.[2] === "design") {
         const job = queue.get(audit[1]);
         if (job?.status !== "complete" || job.target.source !== "website") return send(404, { error: "Website report unavailable." });
-        return send(200, await redesignFor(job, url.searchParams.get("direction"), (name) => queue.asset(job.id, name)));
+        return send(200, await redesignFor(job, url.searchParams.get("direction"), () => queue.designSource(job.id)));
       }
       if (audit && /^export(?:\/(?:file|captions))?$/.test((audit[2] ?? ""))) {
         const [, id, action = ""] = audit;
@@ -186,7 +186,7 @@ function respond(headers: Headers, status: number, data: unknown, type: string) 
 }
 
 const runtime = globalThis as typeof globalThis & {
-  despectoAuditStateV2?: ReturnType<typeof openAuditState>;
+  despectoAuditStateV3?: ReturnType<typeof openAuditState>;
 };
 
 async function openAuditState() {
@@ -199,7 +199,7 @@ async function openAuditState() {
 
 export async function handleAuditRequest(request: Request) {
   // Keep jobs and rendered videos across Fast Refresh. The route must use the current response schemas.
-  runtime.despectoAuditStateV2 ??= openAuditState();
-  const { queue, exports } = await runtime.despectoAuditStateV2;
+  runtime.despectoAuditStateV3 ??= openAuditState();
+  const { queue, exports } = await runtime.despectoAuditStateV3;
   return createAuditHandler(queue, exports)(request);
 }

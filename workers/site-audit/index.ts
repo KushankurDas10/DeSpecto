@@ -4,6 +4,7 @@ import type { Finding, Report, Target } from "../../shared/contracts.ts";
 import { modelConfigured } from "../../models/llm.ts";
 import { finding } from "../../shared/finding.ts";
 import { capturePage, withBrowser, withPage } from "./browser.ts";
+import { captureDesignSource } from "./design-source.ts";
 import { inspectPage } from "./inspect.ts";
 
 export async function auditWebsite(target: Target, progress: Progress, context: AuditContext): Promise<AuditResult> {
@@ -18,7 +19,8 @@ export async function auditWebsite(target: Target, progress: Progress, context: 
         const vision = modelConfigured(true)
           ? await capturePage(page, { width: scan.width, height: Math.min(scan.height, scan.viewportHeight) })
           : null;
-        return { view, scan, vision, screenshot };
+        const designSource = view === "desktop" ? await captureDesignSource(page, { width: scan.width, height: scan.height }, screenshot) : undefined;
+        return { view, scan, vision, screenshot, designSource };
       });
       images.push(image);
     }
@@ -66,5 +68,5 @@ export async function auditWebsite(target: Target, progress: Progress, context: 
     notes.push(`AI reviewed the top of the page on ${reviewed} of ${captures.length} screen sizes.`);
   }
   progress(93, "Preparing screenshot evidence");
-  return { findings, fixes, screenshots, notes };
+  return { findings, fixes, screenshots, notes, designSource: captures[0]?.designSource };
 }

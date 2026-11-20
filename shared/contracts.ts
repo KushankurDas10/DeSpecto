@@ -41,7 +41,19 @@ export const findingSchema = z.discriminatedUnion("source", [
   findingFields.extend({ source: z.literal("repo"), evidence: codeEvidenceSchema }),
   findingFields.extend({ source: z.literal("website"), evidence: screenshotEvidenceSchema }),
 ]);
+const sourceItem = z.discriminatedUnion("kind", [
+  z.object({ group: integer.optional(), kind: z.enum(["text", "subheading"]), text: z.string() }),
+  z.object({ group: integer.optional(), kind: z.literal("link"), text: z.string(), href: z.string().regex(/^(https?:\/\/|mailto:)/i) }),
+  z.object({ group: integer.optional(), kind: z.literal("image"), text: z.string(), box }),
+]);
+export const designSourceSchema = size.extend({
+  screenshot: z.string(), title: z.string(),
+  intro: z.array(sourceItem), sections: z.array(z.object({ heading: z.string(), items: z.array(sourceItem) })),
+});
+export type DesignSource = z.infer<typeof designSourceSchema>;
+
 export const reportSchema = z.object({
+  designSource: designSourceSchema.optional(),
   findings: z.array(findingSchema), notes: z.array(z.string()).optional(),
   revision: z.string().optional(),
   screenshots: z.array(size.extend({ view: viewSchema, url: z.string().min(1) })).optional(),
@@ -106,12 +118,13 @@ export type ExportState = z.infer<typeof exportStateSchema>;
 export type Chapter = z.infer<typeof chapterSchema>;
 
 export const designDirection = z.enum(["editorial", "playful", "minimal"]);
-const designText = z.string().trim().min(1).max(420);
-export const designConcept = z.object({
-  sections: z.array(z.object({ label: designText, heading: designText, copy: designText })).min(2).max(4),
-  headline: designText, purpose: designText, typography: designText, mobile: designText,
-  changes: z.array(z.object({ observation: designText, proposal: designText })).min(1).max(4),
-  paper: z.string().regex(/^#[0-9a-f]{6}$/i), accent: z.string().regex(/^#[0-9a-f]{6}$/i),
+const color = z.string().regex(/^#[0-9a-f]{6}$/i);
+export const designPlan = z.object({
+  paper: color, accent: color, rationale: z.string().min(1).max(600),
+  sections: z.array(z.object({ index: integer, layout: z.enum(["feature", "column", "directory"]) })).max(32),
 });
-
-export type DesignPresets = Record<z.infer<typeof designDirection>, z.infer<typeof designConcept>>;
+export const designConcept = z.object({
+  source: designSourceSchema, plan: designPlan, mode: z.enum(["model", "theme", "sample"]),
+});
+export type DesignPlan = z.infer<typeof designPlan>;
+export type DesignPresets = Record<z.infer<typeof designDirection>, DesignPlan>;

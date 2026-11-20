@@ -55,6 +55,39 @@
         "width": 980,
         "height": 2121
       }
-    ]
+    ],
+    "designSource": {
+      "width": 1440,
+      "height": 960,
+      "screenshot": "/sample/desktop.jpg",
+      "title": "http://info.cern.ch - home of the first website",
+      "intro": [
+        {
+          "kind": "text",
+          "text": "From here you can:"
+        },
+        {
+          "kind": "link",
+          "text": "Browse the first website",
+          "href": "http://info.cern.ch/hypertext/WWW/TheProject.html"
+        },
+        {
+          "kind": "link",
+          "text": "Browse the first website using the line-mode browser simulator",
+          "href": "http://line-mode.cern.ch/www/hypertext/WWW/TheProject.html"
+        },
+        {
+          "kind": "link",
+          "text": "Learn about the birth of the web",
+          "href": "http://home.web.cern.ch/topics/birth-web"
+        },
+        {
+          "kind": "link",
+          "text": "Learn about CERN, the physics laboratory where the web was born",
+          "href": "http://home.web.cern.ch/about"
+        }
+      ],
+      "sections": []
+    }
   }
 }

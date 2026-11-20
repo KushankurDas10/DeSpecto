@@ -17,34 +17,7 @@ export const recording: Recording = {
 };
 
 export const designs: DesignPresets = {
-  editorial: {
-    headline: "The first address on the web", purpose: "An archive guide to the first website and the tools people used to read it.",
-    typography: "A serif headline sets the archival tone. Short section headings separate the original pages from the browser exhibit.",
-    mobile: "Stack the two entries in reading order and size the page to the device.",
-    changes: [{ observation: "The original list gives every link equal weight.", proposal: "Lead with the first website, then introduce the line-mode browser as a companion exhibit." }],
-    paper: "#f1e4c9", accent: "#7e3928", sections: [
-      { label: "The website", heading: "Inside the World Wide Web project", copy: "The original pages introduce the project and explain how readers could find information through links." },
-      { label: "The browser", heading: "Reading in line mode", copy: "Early readers could move through a document and follow numbered links using a keyboard." },
-    ],
-  },
-  playful: {
-    headline: "Pick your first click", purpose: "Explore the early web through two stops on a short tour.",
-    typography: "Heavy poster lettering leads into two activity cards, each with a question you can explore.",
-    mobile: "Place each stop on its own row with a large tap target.",
-    changes: [{ observation: "A newcomer has to choose between unfamiliar destinations.", proposal: "Introduce each stop with a question and describe what the visitor will find there." }],
-    paper: "#c6a6ef", accent: "#ffb736", sections: [
-      { label: "Stop one", heading: "What was on the first website?", copy: "Start with the project page. Its links branch out into explanations, software and ways to get involved." },
-      { label: "Stop two", heading: "What did browsing feel like?", copy: "Meet the line-mode browser and imagine navigating a page one numbered link at a time." },
-    ],
-  },
-  minimal: {
-    headline: "Web origins", purpose: "A compact directory for exploring the first website at CERN.",
-    typography: "Plain destination names double as disclosure controls. Open an entry to read its description.",
-    mobile: "Use a single fluid column with room between adjacent destinations.",
-    changes: [{ observation: "Similar link labels take time to scan.", proposal: "Name each destination first and move its context into a separate line." }],
-    paper: "#f5f6f5", accent: "#30455a", sections: [
-      { label: "Site", heading: "First website", copy: "The original World Wide Web project pages, preserved at CERN." },
-      { label: "Browser", heading: "Line-mode browser", copy: "A text-based way to explore how the web looked to its early readers." },
-    ],
-  },
+  editorial: { paper: "#f1e4c9", accent: "#7e3928", rationale: "Set the archive title as a masthead and lead into the original CERN destinations.", sections: [] },
+  playful: { paper: "#c6a6ef", accent: "#ffb736", rationale: "Turn the original destinations into tactile links under the archive title.", sections: [] },
+  minimal: { paper: "#f5f6f5", accent: "#30455a", rationale: "Use a compact index so each original destination is easy to scan.", sections: [] },
 };

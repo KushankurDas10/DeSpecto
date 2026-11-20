@@ -1,3 +1,4 @@
+import { renderSource } from "./design-preview.ts";
 import { designConcept, designDirection, type DesignPresets, type CompletedJob } from "../../shared/contracts.ts";
 import { button, element, errorMessage, request } from "./dom.ts";
 
@@ -43,42 +44,17 @@ export function designPanel(job: CompletedJob, presets?: DesignPresets) {
     generate.disabled = select.disabled = true;
     status.textContent = "Designing from the audited screenshots…";
     try {
-      const concept = presets ? presets[designDirection.parse(select.value)] : await request("/api/audits/" + job.id + "/design?direction=" + select.value, designConcept, { method: "POST", signal: controller.signal });
+      const concept = presets && job.result.designSource
+        ? { plan: presets[designDirection.parse(select.value)], source: job.result.designSource, mode: "sample" }
+        : await request("/api/audits/" + job.id + "/design?direction=" + select.value, designConcept, { method: "POST", signal: controller.signal });
       if (controller.signal.aborted) return;
       preview.className = "site-concept " + select.value;
-      preview.style.setProperty("--concept-paper", concept.paper);
-      preview.style.setProperty("--concept-accent", concept.accent);
-      const mast = element("header", "prototype-hero");
-      mast.append(element("strong", "", job.target.label), element("h3", "", concept.headline), element("p", "", concept.purpose));
-      const stories = element("div", "prototype-stories");
-      preview.replaceChildren(mast, stories);
-      if (select.value === "minimal") {
-        for (const [index, section] of concept.sections.entries()) {
-          const entry = element("details");
-          entry.open = index === 0;
-          entry.append(element("summary", "", section.heading), element("p", "", section.copy));
-          stories.append(entry);
-        }
-      } else {
-        const nav = element("nav", "prototype-nav");
-        nav.setAttribute("aria-label", "Preview sections");
-        mast.after(nav);
-        for (const section of concept.sections) {
-          const block = element("section");
-          block.tabIndex = -1;
-          block.append(element("h4", "", section.heading), element("p", "", section.copy));
-          stories.append(block);
-          nav.append(button(section.label, "", () => {
-            block.focus({ preventScroll: true });
-            surface.scrollTop += block.getBoundingClientRect().top - surface.getBoundingClientRect().top - 8;
-          }));
-        }
-      }
-      notes.replaceChildren(element("h3", "", "Design decisions"));
-      for (const change of concept.changes) notes.append(element("strong", "", change.observation), element("p", "", change.proposal));
-      notes.append(element("strong", "", "Typography"), element("p", "", concept.typography), element("strong", "", "Mobile layout"), element("p", "", concept.mobile));
+      renderSource(preview, concept.source, concept.plan);
+      notes.replaceChildren(element("h3", "", "Design decision"), element("p", "", concept.plan.rationale));
       available = true;
-      status.textContent = "Interactive concept ready.";
+      status.textContent = concept.mode === "theme"
+        ? "Theme preview ready. Model guidance was unavailable; generate again to retry."
+        : "Redesign ready.";
       display("Redesign");
     } catch (error) { if (!controller.signal.aborted) status.textContent = errorMessage(error); }
     finally { if (requestController === controller) generate.disabled = select.disabled = false; }
