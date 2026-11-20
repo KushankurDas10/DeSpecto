@@ -1,40 +1,114 @@
-import { designConcept, designDirection } from "../../shared/contracts.ts";
+import { designConcept, designDirection, type CompletedJob } from "../../shared/contracts.ts";
 import { button, element, errorMessage, request } from "./dom.ts";
 
-export function designPanel(id: string) {
-  const panel = element("details", "card design-panel");
-  panel.append(element("summary", "", "Explore a website redesign"));
-  const tools = element("div", "design-tools");
+export function designPanel(job: CompletedJob) {
+  const host = element("div", "studio-launch");
+  const dialog = element("dialog", "design-drawer");
+  const header = element("header", "drawer-header");
+  const heading = element("h2", "", "Redesign studio");
+  heading.id = "studio-heading";
+  dialog.setAttribute("aria-labelledby", heading.id);
+  header.append(heading, button("Close", "button", () => dialog.close()));
+  const controls = element("div", "design-tools");
   const label = element("label", "", "Art direction ");
   const select = element("select");
   for (const value of designDirection.options) select.add(new Option(value[0].toUpperCase() + value.slice(1), value));
   label.append(select);
-  const output = element("div");
-  const status = element("p");
+  const status = element("p", "studio-status");
   status.setAttribute("role", "status");
-  const generate = button("Generate concept", "button primary", async () => {
+  const tabs = element("div", "studio-switch");
+  const surface = element("div", "studio-surface");
+  const preview = element("article", "site-concept");
+  const notes = element("div", "design-notes");
+  const modes = ["Live site", "Saved capture", "Redesign"] as const;
+  type Mode = typeof modes[number];
+  let active: Mode = "Live site";
+  let available = false;
+  let requestController: AbortController | undefined;
+  const buttons = modes.map(mode => button(mode, "", () => display(mode)));
+  const width = element("select");
+  width.setAttribute("aria-label", "Preview width");
+  width.add(new Option("Full width", "wide"));
+  width.add(new Option("Phone width", "phone"));
+  width.onchange = () => { surface.dataset.width = width.value; if (active === "Saved capture") display(active); };
+  const external = element("a", "", "Open original site");
+  external.href = job.target.url;
+  external.target = "_blank";
+  external.rel = "noopener noreferrer";
+  tabs.append(...buttons, width);
+  const help = element("p", "studio-hint", "If the site blocks embedded previews, select Saved capture or open the original site.");
+  const generate = button("Generate redesign", "button primary", async () => {
+    const controller = new AbortController();
+    requestController = controller;
     generate.disabled = select.disabled = true;
-    status.textContent = "Reviewing the captured page…";
-    output.replaceChildren();
+    status.textContent = "Designing from the audited screenshots…";
     try {
-      const concept = await request("/api/audits/" + id + "/design?direction=" + select.value, designConcept, { method: "POST" });
-      const preview = element("div", "concept-preview " + select.value);
+      const concept = await request("/api/audits/" + job.id + "/design?direction=" + select.value, designConcept, { method: "POST", signal: controller.signal });
+      if (controller.signal.aborted) return;
+      preview.className = "site-concept " + select.value;
       preview.style.backgroundColor = concept.paper;
-      // Use the more legible of black and white on the model’s validated background color.
-      const channels = [1, 3, 5].map(i => parseInt(concept.paper.slice(i, i + 2), 16) / 255)
+      const rgb = [1, 3, 5].map(i => parseInt(concept.paper.slice(i, i + 2), 16) / 255)
         .map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
-      preview.style.color = .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2] > .179 ? "#000" : "#fff";
+      preview.style.color = .2126 * rgb[0] + .7152 * rgb[1] + .0722 * rgb[2] > .179 ? "#111" : "#fff";
       preview.style.borderColor = concept.accent;
-      preview.append(element("h3", "", concept.headline), element("p", "", concept.purpose));
-      output.append(preview);
-      for (const change of concept.changes) output.append(element("strong", "", change.observation), element("p", "", change.proposal));
-      output.append(element("strong", "", "Typography"), element("p", "", concept.typography), element("strong", "", "Mobile layout"), element("p", "", concept.mobile));
-      status.textContent = "Suggested design direction";
-    } catch (error) { status.textContent = errorMessage(error); }
-    finally { generate.disabled = select.disabled = false; }
+      const nav = element("nav", "prototype-nav");
+      nav.setAttribute("aria-label", "Preview sections");
+      const mast = element("header", "prototype-hero");
+      mast.append(element("strong", "", job.target.label), element("h3", "", concept.headline), element("p", "", concept.purpose));
+      preview.replaceChildren(mast, nav);
+      for (const section of concept.sections) {
+        const block = element("section");
+        block.tabIndex = -1;
+        block.append(element("h4", "", section.heading), element("p", "", section.copy));
+        preview.append(block);
+        nav.append(button(section.label, "", () => { block.focus({ preventScroll: true }); surface.scrollTop += block.getBoundingClientRect().top - surface.getBoundingClientRect().top - 8; }));
+      }
+      notes.replaceChildren(element("h3", "", "Design decisions"));
+      for (const change of concept.changes) notes.append(element("strong", "", change.observation), element("p", "", change.proposal));
+      notes.append(element("strong", "", "Typography"), element("p", "", concept.typography), element("strong", "", "Mobile layout"), element("p", "", concept.mobile));
+      available = true;
+      status.textContent = "Interactive concept ready.";
+      display("Redesign");
+    } catch (error) { if (!controller.signal.aborted) status.textContent = errorMessage(error); }
+    finally { if (requestController === controller) generate.disabled = select.disabled = false; }
   });
-  select.addEventListener("change", () => { output.replaceChildren(); status.textContent = ""; });
-  tools.append(label, generate);
-  panel.append(tools, status, output);
-  return panel;
+  select.onchange = () => { available = false; status.textContent = ""; display(active === "Redesign" ? "Saved capture" : active); };
+  controls.append(label, generate);
+  function display(mode: Mode) {
+    active = mode;
+    buttons.forEach((control, index) => {
+      control.setAttribute("aria-pressed", String(modes[index] === mode));
+      control.disabled = modes[index] === "Redesign" && !available;
+    });
+    surface.replaceChildren();
+    surface.scrollTop = 0;
+    notes.hidden = mode !== "Redesign";
+    help.hidden = mode !== "Live site";
+    if (mode === "Redesign") surface.append(preview);
+    else if (mode === "Live site") {
+      const frame = element("iframe");
+      frame.title = "Live view of " + job.target.label;
+      frame.sandbox.add("allow-scripts");
+      frame.referrerPolicy = "no-referrer";
+      frame.src = job.target.url;
+      surface.append(frame);
+    } else {
+      const shots = job.result.screenshots ?? [];
+      const shot = shots.find(s => s.view === (width.value === "phone" ? "mobile" : "desktop")) ?? shots[0];
+      if (shot) { const img = element("img"); img.alt = "Audited " + shot.view + " capture"; img.src = shot.url; surface.append(img); }
+      else surface.append(element("p", "", "This report has no saved screenshot."));
+    }
+  }
+  dialog.addEventListener("close", () => {
+    requestController?.abort();
+    surface.replaceChildren();
+    status.textContent = "";
+  });
+  dialog.append(header, controls, status, tabs, surface, help, external, notes);
+  host.append(button("Redesign studio", "button", () => {
+    document.querySelector("video")?.pause();
+    dialog.showModal();
+    display(active);
+  }), dialog);
+  return host;
 }

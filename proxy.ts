@@ -9,6 +9,7 @@ export function proxy(request: NextRequest) {
     "img-src 'self'",
     "style-src 'self' https://fonts.googleapis.com",
     "font-src https://fonts.gstatic.com",
+    "frame-src https: http:",
     "frame-ancestors 'none'",
     "form-action 'self'",
     "base-uri 'none'",

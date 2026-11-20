@@ -17,6 +17,12 @@ export function showReport(container: HTMLElement, job: CompletedJob, onNewAudit
   link.rel = "noopener noreferrer";
   text.append(element("span", "eyebrow", target.source === "repo" ? "Repository audit" : "Website audit"), title, link);
   for (const note of result.notes ?? []) text.append(element("p", "report-notes", note));
+  const counts = element("div", "report-counts");
+  for (const severity of severities) {
+    const count = result.findings.filter(item => item.severity === severity).length;
+    counts.append(element("span", "severity " + severity, count + " " + severity));
+  }
+  text.append(counts);
   heading.append(text, button("New audit", "button", onNewAudit));
 
   const tabs = element("nav", "report-tabs");
@@ -27,7 +33,7 @@ export function showReport(container: HTMLElement, job: CompletedJob, onNewAudit
   const walkthroughTab = button("Walkthrough", "", () => switchTo("walkthrough"));
   tabs.append(reportTab, walkthroughTab);
   container.replaceChildren(heading);
-  if (target.source === "website") container.append(designPanel(job.id));
+  if (target.source === "website") tabs.append(designPanel(job));
   container.append(tabs, contents);
 
   function switchTo(view: "findings" | "walkthrough") {
@@ -161,6 +167,7 @@ function renderFix(detail: HTMLElement, id: string, item: Finding) {
     if (!fix) return;
     const summary = element("p", "fix-summary");
     summary.append(element("strong", "", fix.verified ? "Recheck passed. " : "Recheck inconclusive. "), fix.summary);
+    preview.className = "fix-proof";
     preview.replaceChildren(summary);
     action.textContent = "Hide fix";
     if (fix.kind === "diff") {
@@ -171,14 +178,22 @@ function renderFix(detail: HTMLElement, id: string, item: Finding) {
       download.download = "despecto-fix.patch";
       const actions = element("div", "fix-download");
       actions.append(download);
-      preview.append(patch, actions);
+      const lines = element("div", "comparison code-comparison");
+      for (const [label, value] of [["Original line", fix.before], ["Proposed line", fix.after]]) {
+        const figure = element("figure");
+        figure.append(element("figcaption", "", label), element("pre", "", value));
+        lines.append(figure);
+      }
+      const raw = element("details");
+      raw.append(element("summary", "", "View unified diff"), patch);
+      preview.append(lines, raw, actions);
     } else if (item.source === "website") {
       const comparison = element("div", "comparison");
-      for (const [label, url] of [["Before", fix.before], ["After", fix.after]]) {
+      for (const [label, url] of [["Original capture", fix.before], ["Fix preview", fix.after]]) {
         const card = element("figure");
         card.append(element("figcaption", "", label), screenshot({
-          ...item.evidence, ...(label === "Before" ? fix.beforeSize : fix.afterSize),
-          screenshot: url, box: label === "Before" ? fix.beforeBox : null,
+          ...item.evidence, ...(label === "Original capture" ? fix.beforeSize : fix.afterSize),
+          screenshot: url, box: label === "Original capture" ? fix.beforeBox : fix.afterBox,
         }, `${label} applying the proposed change`));
         comparison.append(card);
       }

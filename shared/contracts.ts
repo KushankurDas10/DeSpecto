@@ -108,6 +108,7 @@ export type Chapter = z.infer<typeof chapterSchema>;
 export const designDirection = z.enum(["editorial", "playful", "minimal"]);
 const designText = z.string().trim().min(1).max(420);
 export const designConcept = z.object({
+  sections: z.array(z.object({ label: designText, heading: designText, copy: designText })).min(2).max(4),
   headline: designText, purpose: designText, typography: designText, mobile: designText,
   changes: z.array(z.object({ observation: designText, proposal: designText })).min(1).max(4),
   paper: z.string().regex(/^#[0-9a-f]{6}$/i), accent: z.string().regex(/^#[0-9a-f]{6}$/i),
