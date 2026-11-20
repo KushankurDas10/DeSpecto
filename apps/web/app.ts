@@ -181,7 +181,27 @@ function renderHistory() {
     const status = element("span", "history-status", statuses[audit.status ?? "complete"]);
     status.dataset.state = audit.status ?? "complete";
     row.append(element("span", "category", audit.source === "repo" ? "Repo" : "Site"), element("strong", "", audit.label), status, arrow);
-    historyList.append(row);
+    const entry = element("div", "history-entry");
+    const message = element("p", "history-error");
+    message.setAttribute("role", "alert");
+    const remove = button("Remove", "history-remove", async () => {
+      if (!window.confirm("Remove the saved audit for " + audit.label + "? Its report, screenshots and walkthrough will be deleted.")) return;
+      remove.disabled = true;
+      message.textContent = "";
+      try {
+        await request("/api/audits/" + encodeURIComponent(audit.id), z.object({ removed: z.literal(true) }), { method: "DELETE" });
+        recent = recent.filter(item => item.id !== audit.id);
+        saveRecent();
+        renderHistory();
+        (historyList.querySelector<HTMLButtonElement>("button") ?? target).focus();
+      } catch (error) {
+        remove.disabled = false;
+        message.textContent = errorMessage(error);
+      }
+    });
+    remove.setAttribute("aria-label", "Remove saved audit for " + audit.label);
+    entry.append(row, remove, message);
+    historyList.append(entry);
   }
 }
 

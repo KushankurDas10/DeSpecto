@@ -15,6 +15,7 @@ interface JobRecord {
   fixes?: Map<string, FixRecipe>;
   assets: Map<string, Buffer>;
   assetBytes: number;
+  removing?: Promise<void>;
   pendingFixes: Map<string, Promise<Fix>>;
 }
 
@@ -38,7 +39,7 @@ export function createQueue(store?: ReportStore) {
     if (pending.length >= 8) throw new InputError("The audit queue is full. Try again in a moment.");
     if (records.size >= maxReports) {
       const oldest = [...records].find(([, record]) =>
-        ["complete", "failed"].includes(record.job.status) && record.pendingFixes.size === 0);
+        ["complete", "failed"].includes(record.job.status) && record.pendingFixes.size === 0 && !record.removing);
       if (!oldest) throw new InputError("The audit queue is full. Try again in a moment.");
       records.delete(oldest[0]);
       void store?.remove(oldest[0]).catch((error) => console.warn(error.message));
@@ -94,7 +95,7 @@ export function createQueue(store?: ReportStore) {
 
   async function fix(id: string, findingId: string): Promise<Fix | null> {
     const record = records.get(id);
-    if (record?.job.status !== "complete" || !record.fixes) return null;
+    if (record?.job.status !== "complete" || record.removing || !record.fixes) return null;
     const { job, assets, fixes } = record;
     const item = job.result.findings.find((candidate) => candidate.id === findingId);
     if (!item) return null;
@@ -135,8 +136,22 @@ export function createQueue(store?: ReportStore) {
     }
   }
 
+  async function remove(id: string) {
+    const record = records.get(id);
+    if (!record) return;
+    if (record.job.status === "running" || record.job.status === "queued" || record.pendingFixes.size) {
+      throw new InputError("This audit is still processing. Remove it after it finishes.");
+    }
+    // Block new fix writes until the snapshot has been removed, including during a concurrent retry.
+    record.removing ??= Promise.resolve().then(async () => {
+      await store?.remove(id);
+      records.delete(id);
+    }).finally(() => { record.removing = undefined; });
+    await record.removing;
+  }
+
   return {
-    submit, fix,
+    submit, fix, remove,
     get: (id: string) => records.get(id)?.job,
     asset: (id: string, name: string) => records.get(id)?.assets.get(name),
   };

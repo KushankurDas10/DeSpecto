@@ -87,7 +87,14 @@ export function createExports() {
     return progress;
   }
 
-  return { get, start };
+  function remove(id: string) {
+    for (let index = entries.length - 1; index >= 0; index--) {
+      if (entries[index].job.id === id) entries.splice(index, 1);
+    }
+  }
+
+  const rendering = (id: string) => entries.some(entry => entry.job.id === id && entry.state.status === "rendering");
+  return { get, start, remove, rendering };
 }
 
 async function render(job: CompletedJob, language: Language, script: Promise<Walkthrough>, images: Map<string, Buffer | undefined>, state: Progress) {

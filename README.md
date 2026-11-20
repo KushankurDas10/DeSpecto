@@ -22,7 +22,7 @@ Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The workspace includes publ
 - **Website** · Scrolls through public pages to load lazy content, then captures desktop and mobile screenshots up to 12,000 pixels tall. Checks include overflow, viewport settings, page titles, image descriptions, form labels, and text contrast on solid backgrounds. Optional AI review inspects the top of each capture.
 - **Fix previews** · Provides a downloadable patch when a broken README link has a unique replacement. Re-renders compatible website changes and reruns the check against the preview. Preview changes stay inside DeSpecto.
 
-Completed reports, fix previews, and screenshots are saved in the ignored `.despecto/` directory and survive server restarts. The server keeps up to 20 reports. Set `REPORT_DIR` to use a different local directory.
+Completed reports, fix previews, and screenshots are saved in the ignored `.despecto/` directory and survive server restarts. The server keeps up to 20 reports. Choose **Remove** beside a recent audit to delete its stored report, screenshots and cached walkthrough after confirmation. Set `REPORT_DIR` to use a different local directory.
 
 ## AI review and narration
 

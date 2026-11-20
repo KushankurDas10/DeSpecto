@@ -17,10 +17,16 @@ export function createAuditHandler(queue = createQueue(), exports = createExport
       const url = new URL(request.url);
       const path = url.pathname;
       const audit = /^\/api\/audits\/([a-f\d-]+)(?:\/(.*))?$/.exec(path);
-      if (request.method === "POST" && request.headers.get("origin")
+      if (["POST", "DELETE"].includes(request.method) && request.headers.get("origin")
         && request.headers.get("origin") !== `http://${request.headers.get("host")}`
         && request.headers.get("origin") !== `https://${request.headers.get("host")}`) {
         return send(403, { error: "Cross-origin requests are unavailable." });
+      }
+      if (request.method === "DELETE" && audit && !audit[2]) {
+        if (exports.rendering(audit[1])) return send(409, { error: "The walkthrough is rendering. Remove this audit after it finishes." });
+        await queue.remove(audit[1]);
+        exports.remove(audit[1]);
+        return send(200, { removed: true });
       }
       if (request.method === "POST" && path === "/api/audits") {
         const input = await readBody(request);
@@ -180,7 +186,7 @@ function respond(headers: Headers, status: number, data: unknown, type: string) 
 }
 
 const runtime = globalThis as typeof globalThis & {
-  despectoAuditState?: ReturnType<typeof openAuditState>;
+  despectoAuditStateV2?: ReturnType<typeof openAuditState>;
 };
 
 async function openAuditState() {
@@ -193,7 +199,7 @@ async function openAuditState() {
 
 export async function handleAuditRequest(request: Request) {
   // Keep jobs and rendered videos across Fast Refresh. The route must use the current response schemas.
-  runtime.despectoAuditState ??= openAuditState();
-  const { queue, exports } = await runtime.despectoAuditState;
+  runtime.despectoAuditStateV2 ??= openAuditState();
+  const { queue, exports } = await runtime.despectoAuditStateV2;
   return createAuditHandler(queue, exports)(request);
 }
