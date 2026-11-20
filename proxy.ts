@@ -3,12 +3,16 @@ import { NextResponse, type NextRequest } from "next/server";
 
 export function proxy(request: NextRequest) {
   const nonce = randomBytes(16).toString("base64");
+  const development = process.env.NODE_ENV === "development";
+  const styleSources = "'self' https://fonts.googleapis.com";
   const policy = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'${process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'nonce-${nonce}'${development ? " 'unsafe-eval'" : ""}`,
     "img-src 'self'",
-    "style-src 'self' https://fonts.googleapis.com",
-    "font-src https://fonts.gstatic.com",
+    `style-src ${styleSources}`,
+    // The Next.js development overlay inserts style elements without the request nonce.
+    ...(development ? [`style-src-elem ${styleSources} 'unsafe-inline'`] : []),
+    `font-src https://fonts.gstatic.com${development ? " 'self'" : ""}`,
     "frame-src https: http:",
     "frame-ancestors 'none'",
     "form-action 'self'",
