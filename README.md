@@ -1,56 +1,67 @@
 # DeSpecto
 
-DeSpecto checks public GitHub repositories and websites. Repository findings link to source lines at the audited commit. Website findings point to browser-measured regions in desktop or mobile screenshots. Each audit has a walkthrough in English, Hindi, or Telugu.
+DeSpecto audits a public website or GitHub repository and turns its findings into a chaptered video. A website finding opens on the desktop or phone screenshot where the issue appeared. A repository finding links to the relevant lines at the exact commit that was audited.
+
+## Try the hackathon demo
+
+Start DeSpecto locally, then choose **Watch sample audit** on the home page. The bundled CERN audit includes its screenshots, a verified fix, captions, and an English recording. It works without provider keys or a local video render.
+
+1. Play the walkthrough and jump to **Missing mobile viewport setting**. The recording shows how small the original page appeared on a phone.
+2. Open **Findings** and compare the original capture with the verified viewport fix.
+3. Open **Redesign studio** and choose **Playful**, **Editorial**, or **Minimal**. The sample keeps CERN’s original link labels and destinations.
+4. Return to the workspace to inspect a public URL of your own, or use **Inspect lit/lit** to try a repository audit.
 
 ## Run locally
 
-Install Node.js 22.9 or newer and Git, then run:
+Use Node.js 22.9 or newer, npm, and Git. Run these commands in a terminal.
 
 ```sh
+git clone https://github.com/KushankurDas10/DeSpecto.git
+cd DeSpecto
 npm ci
 npx playwright install chromium
 npm start
 ```
 
-Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The workspace includes public examples for both audit types. The website example can demonstrate a mobile layout fix using **Show fix**.
+Open the [local workspace](http://127.0.0.1:3000). The recorded demo is also available directly at [/sample](http://127.0.0.1:3000/sample). To render new MP4s, install FFmpeg with an H.264 encoder and put it on your PATH, or set `FFMPEG_PATH` to its executable before starting DeSpecto.
 
-`npm start` runs the Next.js development server. For a production build, run `npm run build` and then `npm run start:production`. Use one Node process for the audit queue.
+For a production run, use `npm run build` followed by `npm run start:production`. Run one Node process so audit polling and video requests reach the process that owns the job. The server binds to `127.0.0.1:3000` by default. Set `HOST` or `PORT` to override it.
 
-## What the checks cover
+## What you can inspect
 
-- **Repository** · Checks relative README links, package commands in their documented working directory, and script entry points. It flags missing root READMEs for runnable packages. Git reads a bounded set of files from the default branch without checking out or running submitted code.
-- **Website** · Scrolls through public pages to load lazy content, then captures desktop and mobile screenshots up to 12,000 pixels tall. Checks include overflow, viewport settings, page titles, image descriptions, form labels, and text contrast on solid backgrounds. Optional AI review inspects the top of each capture.
-- **Fix previews** · Provides a downloadable patch when a broken README link has a unique replacement. Re-renders compatible website changes and reruns the check against the preview. Preview changes stay inside DeSpecto.
+| Workflow | What DeSpecto does |
+| --- | --- |
+| Website audit | Opens the public page in Chromium at desktop and mobile sizes, scrolls to load lazy content, and captures up to 12,000 pixels of page height. Checks include horizontal overflow, missing viewport settings, image descriptions, form labels, and text contrast on solid backgrounds. Optional visual review examines the top of each capture. |
+| Repository audit | Reads a bounded set of files from the default branch using Git. Checks README links, documented package commands in their working directory, missing script entry points, and missing root READMEs for runnable packages. The submitted project’s code is never executed. |
+| Fix preview | **Show fix** re-renders supported website changes and reruns the original check. A broken README link with a unique replacement can produce a downloadable patch. You decide whether to apply the change to the original project. |
+| Redesign studio | Reuses captured headings, copy, image regions, and link destinations. The model can arrange sections and choose colors within the selected direction. If model guidance is unavailable, the studio can still render a theme from the captured content. The preview does not reproduce the original site’s custom scripts. |
+| Walkthrough | Select a narration language and choose **Create walkthrough**. Seek by chapter, adjust playback speed, toggle captions, or download the MP4. Where available, **Show fix** in the chapter list adds a before-and-after comparison to the cut. |
 
-Completed reports, fix previews, and screenshots are saved in the ignored `.despecto/` directory and survive server restarts. The server keeps up to 20 reports. Choose **Remove** beside a recent audit to delete its stored report, screenshots and cached walkthrough after confirmation. Set `REPORT_DIR` to use a different local directory.
+## Configure live review and narration
 
-## AI review and narration
+Copy [.env.example](.env.example) to `.env` in the repository root, enter the values you need, and restart the server. The built-in checks and recorded sample work without credentials. Keep the populated file local.
 
-Copy `.env.example` to `.env` at the repository root. For AI review, get an [OpenRouter API key](https://openrouter.ai/settings/keys) with credit for [Qwen3.6](https://openrouter.ai/qwen/qwen3.6-35b-a3b). For narration, get a [Gemini API key](https://aistudio.google.com/api-keys) in Google AI Studio. Gemini 3.8 Flash TTS supports English, Hindi, and Telugu on the [Gemini free tier](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.8-flash-tts), subject to project limits.
+| Setting | Purpose |
+| --- | --- |
+| `AI_BASE_URL` | Chat completions base URL. The example uses OpenRouter. |
+| `AI_API_KEY` | Provider credential. [Create an OpenRouter key](https://openrouter.ai/settings/keys). |
+| `AI_MODEL` | Text model ID available to your provider account. |
+| `AI_VISION_MODEL` | Image-capable model ID for visual review and studio guidance. |
+| `GEMINI_API_KEY` | Server-side narration credential. [Create a Gemini key in Google AI Studio](https://aistudio.google.com/api-keys). |
+| `GEMINI_TTS_MODEL` | Speech model ID. The configured default is in [.env.example](.env.example). |
 
-```dotenv
-AI_BASE_URL=https://openrouter.ai/api/v1
-AI_API_KEY=your_openrouter_key
-AI_MODEL=qwen/qwen3.6-35b-a3b
-AI_VISION_MODEL=qwen/qwen3.6-35b-a3b
-GEMINI_API_KEY=your_google_ai_studio_key
-GEMINI_TTS_MODEL=gemini-3.8-flash-tts
-```
+Gemini uses Charon for English, Kore for Hindi, and Sulafat for Telugu. If narration is unavailable, the player indicates which chapters rely on captions. For a compatible MP3 speech service, configure `TTS_BASE_URL`, `TTS_MODEL`, and optionally `TTS_API_KEY` and `TTS_VOICE`. A configured Gemini key takes precedence.
 
-Run `npm run check:providers -- --speech` to verify narration alone. Run `npm run check:providers` to also verify text and image review. These commands send short requests to the configured providers. Restart the app after changing `.env`.
+## Storage and verification
 
-The text and vision models can use another compatible chat completions API through `AI_BASE_URL`. For an OpenAI-compatible MP3 speech endpoint, set `TTS_BASE_URL`, `TTS_MODEL`, and `TTS_API_KEY` in place of `GEMINI_API_KEY`. Gemini uses Charon for English, Kore for Hindi, and Sulafat for Telugu throughout the walkthrough. Compatible speech endpoints use the single `TTS_VOICE` preset configured on the server.
+Completed reports, screenshots, and saved fix previews persist in `.despecto/`. Set `REPORT_DIR` to use a different directory. The server retains up to 20 reports and keeps recent video renders in memory. **Remove** in audit history deletes a saved audit after confirmation.
 
-Built-in checks and captions work without credentials. The browser can speak captions when it has an installed voice for the selected language.
+| Command | What it checks |
+| --- | --- |
+| `npm run typecheck` | Strict TypeScript across the app and workers. |
+| `npm run build` | The Next.js production build. |
+| `npm run evaluate` | The repository fixture and live baseline across 10 public repositories and 5 websites. Requires Git, Chromium, and network access. |
+| `npm run check:providers -- --speech` | Live narration in English, Hindi, and Telugu. |
+| `npm run check:providers` | Live text, image, and speech responses. Calls the configured providers. |
 
-## Download a walkthrough
-
-Install FFmpeg with H.264 support and make it available on `PATH`, or set `FFMPEG_PATH` to its executable. Restart DeSpecto, open an audit’s **Walkthrough** tab, select a language, then choose **Create walkthrough**. Use the chapter list to jump to a finding. **Show fix** adds the before-and-after comparison next to the finding in the cut. **Download MP4** saves the same video with its caption track and chapter markers. Recently rendered videos stay in server memory.
-
-## Level 1 verification
-
-Run `npm run evaluate` for the built-in baseline. The suite completed on 10 public GitHub repositories and 5 public websites. It checked screenshot coordinates, confirmed that the W3C accessibility examples produced different image findings, rechecked the demo website's fix, and verified that Git accepts a generated README patch. Provider checks run separately through `npm run check:providers`.
-
-For the demo, audit the GitHub example and open a finding's source link. Audit the website example, open **Walkthrough**, select Telugu, then return to the finding and choose **Show fix** to compare the original mobile viewport against the rechecked preview.
-
-The home page’s **Watch sample audit** opens a recorded CERN audit in the shared report, player and redesign studio. Keep the sample in sync with every audit redesign. Refresh its saved evidence, design examples and recording whenever the illustrated finding or walkthrough changes.
+The sample shares the report, player, and studio components with live audits. When a redesign changes what the sample demonstrates, update its saved data in `app/sample/` and its media in `public/sample/` together.
