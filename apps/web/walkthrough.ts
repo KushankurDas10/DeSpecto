@@ -1,10 +1,10 @@
 import { fixSchema, languageSchema, type Chapter, type CompletedJob, type ExportState, type Language } from "../../shared/contracts.ts";
 import { button, element, errorMessage, request } from "./dom.ts";
+import { playbackControls, timecode } from "./playback.ts";
 import { videoExport } from "./export.ts";
 
 type Cut = Extract<ExportState, { status: "complete" }>;
 const languageNames = { en: "English", hi: "Hindi", te: "Telugu" } satisfies Record<Language, string>;
-const timecode = (seconds: number) => Math.floor(seconds / 60) + ":" + String(Math.floor(seconds) % 60).padStart(2, "0");
 type Media = ReturnType<ReturnType<typeof videoExport>["media"]>;
 export type Recording = { cut: Cut; language: Language; media: Media };
 let selectedLanguage: Language = "en";
@@ -34,7 +34,8 @@ export function createWalkthrough(container: HTMLElement, job: CompletedJob, rec
   const layout = element("div", "player-layout");
   const screen = element("div", "player-screen");
   const video = element("video");
-  video.controls = true;
+  const frame = element("div", "playback-frame");
+  frame.hidden = true;
   video.playsInline = true;
   video.preload = "metadata";
   video.setAttribute("aria-label", "Recorded audit walkthrough");
@@ -57,7 +58,9 @@ export function createWalkthrough(container: HTMLElement, job: CompletedJob, rec
   const slateCopy = element("div", "slate-copy");
   slateCopy.append(screenTitle, status, progress, create);
   slate.append(mark, slateCopy);
-  screen.append(video, slate);
+  frame.append(video);
+  const setChapters = playbackControls(video, frame, setNotice);
+  screen.append(frame, slate);
 
   const playback = element("div", "player-main");
   const notice = element("p", "player-notice");
@@ -148,6 +151,7 @@ export function createWalkthrough(container: HTMLElement, job: CompletedJob, rec
   }
 
   function showSlate(heading: string, message: string, action?: string, method: "GET" | "POST" = "POST") {
+    frame.hidden = true;
     video.hidden = true;
     download.hidden = true;
     slate.hidden = false;
@@ -171,7 +175,9 @@ export function createWalkthrough(container: HTMLElement, job: CompletedJob, rec
     video.append(captions);
     if (captions.default) captions.track.mode = "showing";
     video.src = media.video;
+    frame.hidden = false;
     video.hidden = false;
+    setChapters(state.chapters, state.duration);
     slate.hidden = true;
     download.href = media.download;
     download.hidden = false;
