@@ -2,7 +2,7 @@ import type { Page } from "playwright";
 import type { AuditContext, WebsiteFixRecipe } from "../../shared/audit.ts";
 import type { Finding, ScreenshotFix, Target } from "../../shared/contracts.ts";
 import { InputError } from "../../shared/target.ts";
-import { capturePage, withBrowser, withPage } from "../site-audit/browser.ts";
+import { capturePage, settlePage, withBrowser, withPage } from "../site-audit/browser.ts";
 import { inspectPage } from "../site-audit/inspect.ts";
 
 export function previewWebsiteFix(target: Target, item: Finding, recipe: WebsiteFixRecipe, context: AuditContext): Promise<ScreenshotFix> {
@@ -15,6 +15,7 @@ export function previewWebsiteFix(target: Target, item: Finding, recipe: Website
     }
     const before = await capturePage(page, scan);
     await applyPageFix(page, recipe);
+    await settlePage(page);
     const recheck = await inspectPage(page, view, {
       rule,
       targetSelector: selector,

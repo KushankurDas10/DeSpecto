@@ -112,6 +112,20 @@ export function inspectPage(page: Page, view: View, filter?: Filter) {
       }, offender && { property: "width" });
     }
 
+    for (const image of document.images) {
+      if (image.currentSrc && image.complete && !image.naturalWidth && image.alt.trim() && box(image)
+        && image.checkVisibility({ visibilityProperty: true, opacityProperty: true })) {
+        add(image, "broken-image", { type: "bug", severity: "medium", title: "Image failed to load",
+          explanation: "The browser finished requesting this image but could not decode it. Its alternative text is “" + image.alt.slice(0, 100) + "”." });
+      }
+    }
+    for (const label of document.querySelectorAll<HTMLLabelElement>("label[for]")) {
+      if (label.htmlFor && !document.getElementById(label.htmlFor) && label.innerText.trim() && box(label)) {
+        add(label, "orphan-label", { type: "accessibility", severity: "medium", title: "Label points to a missing field",
+          explanation: "This label references the ID “" + label.htmlFor.slice(0, 100) + "”, which is absent from the loaded page." });
+      }
+    }
+
     for (const image of document.querySelectorAll("img:not([alt])")) {
       if (image.getAttribute("role") === "presentation" || image.getAttribute("aria-hidden") === "true" || named(image)) continue;
       add(image, "image-alt", {

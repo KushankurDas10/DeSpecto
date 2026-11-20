@@ -27,7 +27,7 @@ export interface RepoFixRecipe {
 }
 
 export type SiteRule = "title" | "mobile-viewport" | "overflow" | "image-alt"
-  | "field-label" | "text-contrast" | "image-crop";
+  | "broken-image" | "orphan-label" | "field-label" | "text-contrast" | "image-crop";
 
 export type WebsiteChange =
   | { property: "title" | "aria-label" | "contrast"; value: string }
