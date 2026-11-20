@@ -16,14 +16,23 @@ export function showReport(container: HTMLElement, job: CompletedJob, onNewAudit
   link.target = "_blank";
   link.rel = "noopener noreferrer";
   text.append(element("span", "eyebrow", sample ? "Sample website audit" : target.source === "repo" ? "Repository audit" : "Website audit"), title, link);
-  for (const note of result.notes ?? []) text.append(element("p", "report-notes", note));
   const counts = element("div", "report-counts");
+  counts.setAttribute("aria-label", "Findings by severity");
   for (const severity of severities) {
     const count = result.findings.filter(item => item.severity === severity).length;
-    counts.append(element("span", "severity " + severity, count + " " + severity));
+    const cell = element("div", "report-stat");
+    cell.append(element("strong", "", String(count)), element("span", "severity " + severity, severity));
+    counts.append(cell);
   }
-  text.append(counts);
-  heading.append(text, button("New audit", "button", onNewAudit));
+  const actions = element("div", "report-actions");
+  actions.append(button("New audit", "button", onNewAudit));
+  heading.append(text, actions, counts);
+  if (result.notes?.length) {
+    const notes = element("details", "report-notes");
+    notes.append(element("summary", "", "Capture notes"));
+    for (const note of result.notes) notes.append(element("p", "", note));
+    heading.append(notes);
+  }
 
   const tabs = element("nav", "report-tabs");
   tabs.setAttribute("aria-label", "Audit sections");

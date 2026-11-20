@@ -10,10 +10,17 @@ export default async function Page() {
     <SiteHeader />
     <main className="workspace">
       <section id="home">
-        <div className="workspace-intro">
-          <div className="workspace-heading">
-            <h1>Take a closer<br />look.</h1>
-            <p>Audit a website or GitHub repository. See exactly where an issue shows up, then watch the narrated walkthrough.</p>
+        <div className="inspection-desk">
+          <div className="workspace-intro">
+            <div className="workspace-heading">
+              <h1>Take a closer<br /> look.</h1>
+              <p>Inspect a website or GitHub repository. See the evidence, explore a fix, and play the walkthrough.</p>
+            </div>
+            <div className="inspection-board" aria-hidden="true">
+              <img className="hero-inspector" src="/inspector.svg" alt="" width={330} height={260} />
+              <i className="field-spark" /><i className="field-spark" />
+            </div>
+          </div>
             <form id="audit-form">
               <label htmlFor="target">Public GitHub or website URL</label>
               <div className="target-control">
@@ -21,25 +28,17 @@ export default async function Page() {
                 <button className="button primary" type="submit">Start inspection</button>
               </div>
             </form>
-          </div>
-          <div className="inspection-board" aria-hidden="true">
-            <div className="specimen-sheet">
-              <div className="specimen-tab">README.md</div>
-              <div className="specimen-code"><b>81</b> <s>./packages/scripts</s></div>
-              <div className="specimen-code"><b>82</b> <i /></div>
-            </div>
-            <img className="hero-inspector" src="/inspector.svg" alt="" width={330} height={260} />
-            <img className="folder-sticker" src="/case-folder.svg" alt="" width={74} height={74} />
-          </div>
         </div>
         <section className="examples" aria-labelledby="examples-title">
-          <a className="button" href="/sample">Watch sample audit</a>
-          <h2 id="examples-title">Try an example</h2>
-          <button className="example" type="button" aria-label="Audit example repository lit/lit" data-example="https://github.com/lit/lit">
-            <span className="example-icon" aria-hidden="true">⌘</span><span><strong>lit/lit</strong><small>GitHub repository</small></span>
+          <h2 id="examples-title">Explore an audit</h2>
+          <a className="example sample-example" href="/sample">
+            <span className="example-icon" aria-hidden="true">▷</span><span><strong>Watch sample audit</strong><small>Recorded walkthrough</small></span>
+          </a>
+          <button className="example" type="button" data-example="https://github.com/lit/lit">
+            <span className="example-icon" aria-hidden="true">{'{}'}</span><span><strong>Inspect lit/lit</strong><small>GitHub repository</small></span>
           </button>
-          <button className="example" type="button" aria-label="Audit example website info.cern.ch" data-example="https://info.cern.ch/">
-            <span className="example-icon" aria-hidden="true">▤</span><span><strong>info.cern.ch</strong><small>Public website</small></span>
+          <button className="example" type="button" data-example="https://info.cern.ch/">
+            <span className="example-icon" aria-hidden="true">▤</span><span><strong>Inspect info.cern.ch</strong><small>Live website</small></span>
           </button>
         </section>
         <section className="history" aria-labelledby="history-title">

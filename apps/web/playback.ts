@@ -92,7 +92,7 @@ export function playbackControls(video: HTMLVideoElement, frame: HTMLElement, no
     seek.value = String(video.currentTime);
     clock.textContent = timecode(video.currentTime) + " / " + timecode(duration);
     seek.setAttribute("aria-valuetext", clock.textContent);
-    seek.style.setProperty("--played", (duration ? video.currentTime / duration * 100 : 0) + "%");
+    timeline.style.setProperty("--played", (duration ? video.currentTime / duration * 100 : 0) + "%");
     setIcon(play, video.paused ? "Play" : "Pause");
     setIcon(sound, video.muted || !video.volume ? "Unmute" : "Mute");
     volume.value = String(video.muted ? 0 : video.volume);

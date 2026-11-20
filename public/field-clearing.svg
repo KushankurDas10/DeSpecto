@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 144" fill="none" shape-rendering="crispEdges">
+  <defs>
+    <g id="pine">
+      <path fill="#244b3d" d="M15 0h4v5h3v5h3v4h3v4h-4v3h5v4h4v5h-5v3h5v4h3v5H0v-5h4v-4h5v-3H3v-5h4v-4h5v-3H7v-4h3v-4h3V5h2z"/>
+      <path fill="#568064" d="M15 5h3v10h-3v4h-5v-4h3v-5h2zm-4 18h5v4h-3v3H7v-3h4zm-4 12h6v4H4v-2h3z"/>
+      <path fill="#634d36" d="M15 42h6v9h-6z"/>
+    </g>
+    <g id="fern" fill="#62876b"><path d="M0 0h2v3h2v2h2V0h2v5h2V2h2v4h-2v2H4V6H2V4H0z"/></g>
+    <g id="flower"><path fill="#42664c" d="M2 2h2v7H2z"/><path fill="#fff0bd" d="M0 0h2v-2h2v2h2v2H4v2H2V2H0z"/><path fill="#bd794b" d="M2 0h2v2H2z"/></g>
+    <g id="cloud" fill="#edf0d9"><path d="M0 10h5V6h8V2h12v4h7v3h7v4H0z"/></g>
+  </defs>
+  <path fill="#e5e8c5" d="M158 12h16v3h5v5h3v15h-3v5h-5v3h-16v-3h-5v-5h-3V20h3v-5h5z"/>
+  <use href="#cloud" x="26" y="18"/><use href="#cloud" x="141" y="29"/><use href="#cloud" transform="translate(202 9) scale(.66)"/>
+  <path fill="#a6bea2" d="M0 96h8v-4h12v-5h12v-4h11v-4h14v-4h10v-5h15v-5h8v-5h15v-4h9v-5h18v3h10v7h11v4h11v7h12v3h12v6h9v6h14v5h10v6h19v46H0z"/>
+  <path fill="#7fa58b" d="M0 110h13v-3h16v-4h22V99h19v-5h18v-3h19v-5h20v-5h11v-5h15v-5h12v-6h13v-6h14v-6h16v4h10v4h13v5h9v78H0z"/>
+  <path fill="#5d8267" d="M0 118h17v-4h20v-3h20v-4h23v-3h27v3h19v4h20v-2h16v-5h18v-5h19v-6h19v-5h22v56H0z"/>
+  <g><use href="#pine" transform="translate(22 93) scale(.46)"/><use href="#pine" transform="translate(39 88) scale(.54)"/><use href="#pine" transform="translate(184 61) scale(.86)"/><use href="#pine" transform="translate(202 34) scale(1.48)"/></g>
+  <path fill="#a5ba85" d="M0 125h17v-3h17v-4h25v-4h30v-4h38v3h25v4h22v3h20v-3h16v-4h30v31H0z"/>
+  <path fill="#65855b" d="M0 140h25v-3h16v-3h18v-3h25v-2h29v2h18v2h25v-2h19v-3h19v-2h22v-4h24v22H0z"/>
+  <g><use href="#fern" x="15" y="126"/><use href="#fern" x="60" y="122"/><use href="#fern" x="181" y="131"/><use href="#flower" x="35" y="126"/><use href="#flower" x="42" y="125"/><use href="#flower" x="170" y="119"/><use href="#flower" x="222" y="116"/></g>
+</svg>
