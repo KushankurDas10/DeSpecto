@@ -18,7 +18,7 @@ export default async function Page() {
               <label htmlFor="target">Public GitHub or website URL</label>
               <div className="target-control">
                 <input id="target" name="url" type="text" inputMode="url" maxLength={2048} placeholder="github.com/owner/repo or example.com" required autoComplete="url" spellCheck={false} />
-                <button className="button primary" type="submit">Run audit</button>
+                <button className="button primary" type="submit">Start inspection</button>
               </div>
             </form>
           </div>
@@ -44,7 +44,7 @@ export default async function Page() {
         </section>
         <section className="history" aria-labelledby="history-title">
           <div className="section-heading">
-            <h2 id="history-title">Recent audits</h2>
+            <h2 id="history-title">Audit history</h2>
           </div>
           <div id="history-list" className="history-list"></div>
         </section>

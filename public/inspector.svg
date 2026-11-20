@@ -1,4 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 330 260" fill="none">
+  <style>
+    @media (prefers-reduced-motion: no-preference) {
+      .lens-hand { transform-origin: 197px 139px; animation: inspect-lens 7s ease-in-out infinite; }
+      .eyes ellipse { transform-box: fill-box; transform-origin: center; animation: blink 7s linear infinite; }
+    }
+    @keyframes inspect-lens {
+      0%, 18%, 70%, 100% { transform: rotate(0); }
+      37%, 51% { transform: rotate(-8deg); }
+    }
+    @keyframes blink {
+      0%, 58%, 62%, 100% { transform: scaleY(1); }
+      60% { transform: scaleY(.12); }
+    }
+  </style>
   <defs>
     <g id="beetle" stroke="#273834" stroke-linecap="round" stroke-linejoin="round">
       <g stroke-width="7">
@@ -12,13 +26,17 @@
         <path d="M91 138q31-20 59-65-6 52-24 85-10 19-24 19-10-11-11-39z" fill="#729981" stroke-width="4"/>
         <path d="M102 140l20-19m-15 37 8-11" stroke-width="3"/>
         <path d="M139 100q2-12 10-13m12-3q9-3 15 5" stroke-width="3"/>
-        <ellipse cx="151" cy="108" rx="6" ry="10" fill="#273834" stroke="none"/><ellipse cx="176" cy="101" rx="6" ry="10" fill="#273834" stroke="none"/>
+        <g class="eyes">
+          <ellipse cx="151" cy="108" rx="6" ry="10" fill="#273834" stroke="none"/><ellipse cx="176" cy="101" rx="6" ry="10" fill="#273834" stroke="none"/>
+        </g>
         <path d="M156 127q10 8 18-4" stroke-width="4"/>
-        <path d="M208 116l-14 25q-3 6 4 10t11-3l13-24" fill="#d9a475" stroke-width="4"/>
-        <circle cx="234" cy="88" r="38" fill="#edc697" stroke-width="5"/>
-        <circle cx="234" cy="88" r="29" fill="#dcebe6" stroke-width="3"/>
-        <path d="M214 84q4-15 18-17m-14 29 8-12" stroke="#fff" stroke-width="5"/>
-        <path d="M196 136q-7-3-6-9 1-4 6-2l7 4q-5-10 0-11 5-2 12 10 1 6-5 11-8 6-14-3z" fill="#f4d6ac" stroke-width="3"/>
+        <g class="lens-hand">
+          <path d="M208 116l-14 25q-3 6 4 10t11-3l13-24" fill="#d9a475" stroke-width="4"/>
+          <circle cx="234" cy="88" r="38" fill="#edc697" stroke-width="5"/>
+          <circle cx="234" cy="88" r="29" fill="#dcebe6" stroke-width="3"/>
+          <path d="M214 84q4-15 18-17m-14 29 8-12" stroke="#fff" stroke-width="5"/>
+          <path d="M196 136q-7-3-6-9 1-4 6-2l7 4q-5-10 0-11 5-2 12 10 1 6-5 11-8 6-14-3z" fill="#f4d6ac" stroke-width="3"/>
+        </g>
       </g>
     </g>
     <filter id="edge" x="-15%" y="-15%" width="135%" height="140%">
