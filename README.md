@@ -1,10 +1,10 @@
 # DeSpecto
 
-DeSpecto checks public GitHub repositories and websites. Repository findings link to source lines at the audited commit. Website findings point to browser-measured regions in desktop or mobile screenshots. Each audit has a walkthrough in English, Hindi, or Telugu.
+DeSpecto performs automated, evidence-driven audits of public GitHub repositories and live websites. Repository findings correlate directly with exact source lines at the audited commit, while website findings precisely pinpoint browser-measured regions across desktop and mobile captures. Every audit features an interactive narrated walkthrough available in English, Hindi, or Telugu.
 
 ## Run locally
 
-Install Node.js 22.9 or newer and Git, then run:
+Ensure Node.js 22.9 or newer and Git are installed, then execute:
 
 ```sh
 npm ci
@@ -12,19 +12,19 @@ npx playwright install chromium
 npm start
 ```
 
-Open [http://127.0.0.1:3000](http://127.0.0.1:3000). The workspace includes public examples for both audit types. The website example can demonstrate a mobile layout fix using **Show fix**.
+Navigate to [http://127.0.0.1:3000](http://127.0.0.1:3000). The workspace includes curated public examples for both audit types. Selecting the website example demonstrates an interactive mobile layout remediation through **Show fix**.
 
 ## What the checks cover
 
-- **Repository** · Checks relative README links, package commands in their documented working directory, and script entry points. It flags missing root READMEs for runnable packages. Git reads a bounded set of files from the default branch without checking out or running submitted code.
-- **Website** · Scrolls through public pages to load lazy content, then captures desktop and mobile screenshots up to 12,000 pixels tall. Checks include overflow, viewport settings, page titles, image descriptions, form labels, and text contrast on solid backgrounds. Optional AI review inspects the top of each capture.
-- **Fix previews** · Provides a downloadable patch when a broken README link has a unique replacement. Re-renders compatible website changes and reruns the check against the preview. Preview changes stay inside DeSpecto.
+- **Repository** · Evaluates relative README links, verifies documented package commands within their designated working directories, and inspects script entry points. It detects absent root README files across runnable packages. Git queries a strictly bounded set of files from the default branch without ever checking out or executing submitted code.
+- **Website** · Traverses public pages to ensure lazy-loaded assets resolve, capturing comprehensive desktop and mobile screenshots up to 12,000 pixels in height. Automated evaluations assess horizontal layout overflow, mobile viewport configurations, document titles, image descriptions, accessible form labels, and WCAG text contrast over solid backgrounds. An optional AI review further evaluates visual layout and occlusion at the fold.
+- **Fix previews** · Generates a downloadable unified diff patch whenever a broken README link has an unambiguous target. For websites, it dynamically injects and re-renders compatible DOM corrections, instantly rechecking the criteria against the preview. All preview transformations remain contained entirely within DeSpecto.
 
-Completed reports, fix previews, and screenshots are saved in the ignored `.despecto/` directory and survive server restarts. The server keeps up to 20 reports. Set `REPORT_DIR` to use a different local directory.
+Generated audit reports, fix previews, and visual evidence persist across server restarts within the git-ignored `.despecto/` directory. The server maintains a sliding window of up to 20 audits. Configure `REPORT_DIR` to designate an alternative storage path.
 
 ## AI review and narration
 
-Create a local `.env` at the repository root. For AI review, get an [OpenRouter API key](https://openrouter.ai/settings/keys) with credit for [Qwen3.6](https://openrouter.ai/qwen/qwen3.6-35b-a3b). For narration, get a [Gemini API key](https://aistudio.google.com/api-keys) in Google AI Studio. Gemini 3.8 Flash TTS supports English, Hindi, and Telugu on the [Gemini free tier](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.8-flash-tts), subject to project limits.
+Create a local `.env` file at the repository root. For intelligent visual and text review, obtain an [OpenRouter API key](https://openrouter.ai/settings/keys) provisioned with credit for [Qwen3.6](https://openrouter.ai/qwen/qwen3.6-35b-a3b). For voice narration, generate a [Gemini API key](https://aistudio.google.com/api-keys) via Google AI Studio. Gemini 3.8 Flash TTS seamlessly articulates English, Hindi, and Telugu within the [Gemini free tier](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.8-flash-tts), subject to standard project quotas.
 
 ```dotenv
 AI_BASE_URL=https://openrouter.ai/api/v1
@@ -34,18 +34,18 @@ AI_VISION_MODEL=qwen/qwen3.6-35b-a3b
 GEMINI_API_KEY=your_google_ai_studio_key
 ```
 
-Run `npm run check:providers -- --speech` to verify narration alone. Run `npm run check:providers` to also verify text and image review. These commands send short requests to the configured providers. Restart the app after changing `.env`.
+Run `npm run check:providers -- --speech` to test narration isolation. Run `npm run check:providers` to comprehensively validate text, vision, and speech integrations. These utilities dispatch concise validation requests to verify connectivity. Restart DeSpecto whenever changes are made to `.env`.
 
-The text and vision models can use another compatible chat completions API through `AI_BASE_URL`. For an OpenAI-compatible MP3 speech endpoint, set `TTS_BASE_URL`, `TTS_MODEL`, and `TTS_API_KEY` in place of `GEMINI_API_KEY`. Set `TTS_VOICE_EN`, `TTS_VOICE_HI`, or `TTS_VOICE_TE` to override the default voice (`Charon` for Gemini).
+Text and vision evaluations are compatible with any OpenAI-compliant chat completions endpoint specified via `AI_BASE_URL`. Alternatively, an OpenAI-compatible MP3 speech endpoint can be integrated by supplying `TTS_BASE_URL`, `TTS_MODEL`, and `TTS_API_KEY` instead of `GEMINI_API_KEY`. Customize regional voice assignments with `TTS_VOICE_EN`, `TTS_VOICE_HI`, or `TTS_VOICE_TE` (defaulting to `Charon` under Gemini).
 
-Built-in checks and captions work without credentials. The browser can speak captions when it has an installed voice for the selected language.
+Core heuristic audits and closed captions operate entirely without third-party credentials. Modern browsers can synthesize spoken captions natively when supported system voices exist for the selected locale.
 
 ## Download a walkthrough
 
-Install FFmpeg with H.264 support and make it available on `PATH`, or set `FFMPEG_PATH` to its executable. Restart DeSpecto, open an audit's **Walkthrough** tab, and select the narration language. The camera and pointer move toward each finding as it plays. Choose **Show fix** on a supported finding to add a before-and-after scene. **Export MP4** includes those scenes, camera movement, captions, and available narration. The server retains the most recent export.
+Ensure FFmpeg is compiled with H.264 support and accessible on your system `PATH`, or explicitly define `FFMPEG_PATH` pointing to the executable. After restarting DeSpecto, navigate to an audit's **Walkthrough** tab and select your preferred narration language. The camera and spotlight smoothly pan and track across each flagged item as the narration unfolds. Selecting **Show fix** on an eligible finding inserts an animated before-and-after scene directly into the timeline. Selecting **Export MP4** compiles these synchronized movements, caption tracks, and synthesized voiceovers into a standalone video. The server caches recent exports for immediate playback.
 
 ## Level 1 verification
 
-Run `npm run evaluate` for the built-in baseline. The suite completed on 10 public GitHub repositories and 5 public websites. It checked screenshot coordinates, confirmed that the W3C accessibility examples produced different image findings, rechecked the demo website's fix, and verified that Git accepts a generated README patch. Provider checks run separately through `npm run check:providers`.
+Execute `npm run evaluate` to run the baseline verification suite. The evaluation suite rigorously benchmarks across 10 public GitHub repositories and 5 public websites—validating screenshot bounding boxes, confirming that contrasting W3C accessibility demos yield distinct findings, re-auditing live layout remediations, and asserting that Git cleanly applies generated README patches. Provider checks run independently via `npm run check:providers`.
 
-For the demo, audit the GitHub example and open a finding's source link. Audit the website example, open **Walkthrough**, select Telugu, then return to the finding and choose **Show fix** to compare the original mobile viewport against the rechecked preview.
+For an interactive demonstration, audit the sample GitHub repository and navigate directly to a finding's highlighted source line. Next, audit the sample website, open **Walkthrough**, switch narration to Telugu, and select **Show fix** on the mobile viewport finding to view a side-by-side comparison of the initial layout against the verified preview.
