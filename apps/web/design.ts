@@ -46,22 +46,33 @@ export function designPanel(job: CompletedJob, presets?: DesignPresets) {
       const concept = presets ? presets[designDirection.parse(select.value)] : await request("/api/audits/" + job.id + "/design?direction=" + select.value, designConcept, { method: "POST", signal: controller.signal });
       if (controller.signal.aborted) return;
       preview.className = "site-concept " + select.value;
-      preview.style.backgroundColor = concept.paper;
-      const rgb = [1, 3, 5].map(i => parseInt(concept.paper.slice(i, i + 2), 16) / 255)
-        .map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
-      preview.style.color = .2126 * rgb[0] + .7152 * rgb[1] + .0722 * rgb[2] > .179 ? "#111" : "#fff";
-      preview.style.borderColor = concept.accent;
-      const nav = element("nav", "prototype-nav");
-      nav.setAttribute("aria-label", "Preview sections");
+      preview.style.setProperty("--concept-paper", concept.paper);
+      preview.style.setProperty("--concept-accent", concept.accent);
       const mast = element("header", "prototype-hero");
       mast.append(element("strong", "", job.target.label), element("h3", "", concept.headline), element("p", "", concept.purpose));
-      preview.replaceChildren(mast, nav);
-      for (const section of concept.sections) {
-        const block = element("section");
-        block.tabIndex = -1;
-        block.append(element("h4", "", section.heading), element("p", "", section.copy));
-        preview.append(block);
-        nav.append(button(section.label, "", () => { block.focus({ preventScroll: true }); surface.scrollTop += block.getBoundingClientRect().top - surface.getBoundingClientRect().top - 8; }));
+      const stories = element("div", "prototype-stories");
+      preview.replaceChildren(mast, stories);
+      if (select.value === "minimal") {
+        for (const [index, section] of concept.sections.entries()) {
+          const entry = element("details");
+          entry.open = index === 0;
+          entry.append(element("summary", "", section.heading), element("p", "", section.copy));
+          stories.append(entry);
+        }
+      } else {
+        const nav = element("nav", "prototype-nav");
+        nav.setAttribute("aria-label", "Preview sections");
+        mast.after(nav);
+        for (const section of concept.sections) {
+          const block = element("section");
+          block.tabIndex = -1;
+          block.append(element("h4", "", section.heading), element("p", "", section.copy));
+          stories.append(block);
+          nav.append(button(section.label, "", () => {
+            block.focus({ preventScroll: true });
+            surface.scrollTop += block.getBoundingClientRect().top - surface.getBoundingClientRect().top - 8;
+          }));
+        }
       }
       notes.replaceChildren(element("h3", "", "Design decisions"));
       for (const change of concept.changes) notes.append(element("strong", "", change.observation), element("p", "", change.proposal));
