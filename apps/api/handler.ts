@@ -8,8 +8,7 @@ import { narrationFor } from "../../video/speech.ts";
 import { createExports, exportAvailable } from "../../video/export.ts";
 
 
-export function createAuditHandler(queue = createQueue()) {
-  const exports = createExports();
+export function createAuditHandler(queue = createQueue(), exports = createExports()) {
   return async (request: Request) => {
     const headers = new Headers({ "Cache-Control": "no-store" });
     const send = (status: number, data: unknown, type = "application/json; charset=utf-8") =>
@@ -181,18 +180,20 @@ function respond(headers: Headers, status: number, data: unknown, type: string) 
 }
 
 const runtime = globalThis as typeof globalThis & {
-  despectoAuditHandler?: Promise<ReturnType<typeof createAuditHandler>>;
+  despectoAuditState?: ReturnType<typeof openAuditState>;
 };
 
-async function openHandler() {
+async function openAuditState() {
   const store = await openReportStore(process.env.REPORT_DIR ?? ".despecto").catch((error: unknown) => {
     console.warn("Reports will stay in memory.", error);
     return undefined;
   });
-  return createAuditHandler(createQueue(store));
+  return { queue: createQueue(store), exports: createExports() };
 }
 
 export async function handleAuditRequest(request: Request) {
-  runtime.despectoAuditHandler ??= openHandler();
-  return (await runtime.despectoAuditHandler)(request);
+  // Keep jobs and rendered videos across Fast Refresh. The route must use the current response schemas.
+  runtime.despectoAuditState ??= openAuditState();
+  const { queue, exports } = await runtime.despectoAuditState;
+  return createAuditHandler(queue, exports)(request);
 }
