@@ -172,8 +172,12 @@ async function checkRepoFixture() {
   console.log("PASS repository fixture · Markdown context, source evidence, and an applicable patch");
 }
 
+const fixtureOnly = process.argv.includes("--fixture-only");
+
 await checkRepoFixture();
-await Promise.all([run(), run()]);
-const passed = results.filter(Boolean).length;
-console.log(`${passed}/${repositories.length + websites.length} targets passed.`);
-if (passed !== repositories.length + websites.length) process.exitCode = 1;
+if (!fixtureOnly) {
+  await Promise.all([run(), run()]);
+  const passed = results.filter(Boolean).length;
+  console.log(`${passed}/${repositories.length + websites.length} targets passed.`);
+  if (passed !== repositories.length + websites.length) process.exitCode = 1;
+}
