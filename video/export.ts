@@ -166,6 +166,8 @@ async function render(job: CompletedJob, language: Language, script: Promise<Wal
       "-map", "0:v:0", "-map", "1:a:0", "-map", "2:s:0", "-map_metadata", "3", "-map_chapters", "3",
       "-c:v", "copy", "-c:a", "aac", "-b:a", "96k", "-c:s", "mov_text",
       "-metadata:s:a:0", "language=" + isoLanguage, "-metadata:s:s:0", "language=" + isoLanguage,
+      // The automatic movie timescale can overflow chapter sample durations when captions are muxed.
+      "-movie_timescale", "1000",
       "-disposition:s:0", narrated < chapters.length ? "default" : "0", "-movflags", "+faststart", "walkthrough.mp4",
     ], directory, deadline);
     const path = join(directory, "walkthrough.mp4");
