@@ -182,7 +182,8 @@ export function createWalkthrough(container: HTMLElement, job: CompletedJob, rec
     download.href = media.download;
     download.hidden = false;
     setNotice(state.narrated === 0 ? "Captions only. Narration was unavailable for this cut."
-      : state.narrated < state.total ? "Captions cover every chapter. Some chapters have no narration." : "");
+      : state.narrated < state.total ? "Captions cover every chapter. Some chapters have no narration."
+      : state.localNarration ? "This cut uses a local English voice because the speech provider was unavailable." : "");
   }
 
   function drawChapters() {

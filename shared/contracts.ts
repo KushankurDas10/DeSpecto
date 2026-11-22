@@ -93,6 +93,7 @@ export const exportStateSchema = z.discriminatedUnion("status", [
   exportProgress.extend({ status: z.literal("rendering"), phase: z.enum(["script", "edit", "encode"]) }),
   exportProgress.extend({
     status: z.literal("complete"), narrated: integer, revision: z.string(),
+    localNarration: z.boolean().optional(),
     duration: z.number().positive(), chapters: z.array(chapterSchema).min(1),
   }),
   exportProgress.extend({ status: z.literal("failed"), error: z.string() }),

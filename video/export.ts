@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { chromium } from "playwright";
 import type { Chapter, CompletedJob, ExportState, Language, Scene, Walkthrough } from "../shared/contracts.ts";
 import { InputError } from "../shared/target.ts";
+import { speechConfigured } from "../models/tts.ts";
 import { frameSize, motionRate, prepareFrame, renderFrames } from "./frame.ts";
 import { captionsFor, chapterMetadata } from "./timeline.ts";
 import { narrationFor } from "./speech.ts";
@@ -64,10 +65,10 @@ export function createExports() {
     }
     const images = new Map([...paths].map((url) => [url, asset(url)]));
     entries.unshift(entry);
-    void render(job, language, script, images, progress).then(({ bytes, captions, narrated, chapters, duration }) => {
+    void render(job, language, script, images, progress).then(({ bytes, captions, narrated, chapters, duration, localNarration }) => {
       entry.media = { bytes, captions };
       entry.state = { status: "complete", completed: progress.completed, total: progress.total,
-        narrated, chapters, duration, revision: entry.revision };
+        narrated, chapters, duration, localNarration, revision: entry.revision };
     }).catch((error) => {
       if (!(error instanceof InputError)) console.error(error);
       entry.state = { status: "failed", completed: progress.completed, total: progress.total,
@@ -105,6 +106,7 @@ async function render(job: CompletedJob, language: Language, script: Promise<Wal
     const { scenes } = await script;
     state.phase = "edit";
     state.total = scenes.length;
+    const { audio, localNarration } = await prepareNarration(scenes, language, directory, deadline);
     browser = await chromium.launch({ chromiumSandbox: true, timeout: 12000 });
     const page = await browser.newPage({ viewport: frameSize, deviceScaleFactor: 1 });
     await page.route(/^https?:\/\//, (route) => route.abort());
@@ -116,10 +118,9 @@ async function render(job: CompletedJob, language: Language, script: Promise<Wal
       for (const [index, scene] of scenes.entries()) {
         if (Date.now() >= deadline) throw new InputError("The walkthrough reached its seven-minute time limit.");
         const framePrefix = "frame-" + index + "-";
-        const speech = readSpeech(scene, directory, deadline).catch(() => Buffer.alloc(0));
         await renderFrames(page, { scene: embedImages(scene, images), label: job.target.label, position: index + 1, total: scenes.length },
           (position, bytes) => writeFile(join(directory, framePrefix + String(position).padStart(2, "0") + ".png"), bytes));
-        const pcm = await speech;
+        const pcm = audio[index] ? await readFile(join(directory, audio[index])) : Buffer.alloc(0);
         const spoken = pcm.length / pcmBytesPerSecond;
         const frames = Math.ceil((spoken ? Math.max(3.5, spoken + lead + tail) : scene.duration) * fps);
         const duration = frames / fps;
@@ -172,7 +173,7 @@ async function render(job: CompletedJob, language: Language, script: Promise<Wal
     ], directory, deadline);
     const path = join(directory, "walkthrough.mp4");
     if ((await stat(path)).size > maxBytes) throw new InputError("The walkthrough exceeded the 48 MiB limit.");
-    return { bytes: await readFile(path), captions, chapters, duration, narrated };
+    return { bytes: await readFile(path), captions, chapters, duration, narrated, localNarration };
   } finally {
     try {
       await browser?.close();
@@ -182,14 +183,49 @@ async function render(job: CompletedJob, language: Language, script: Promise<Wal
   }
 }
 
-async function readSpeech(scene: Scene, directory: string, deadline: number) {
-  const audio = await narrationFor(scene);
-  if (!audio) return Buffer.alloc(0);
-  const input = audio.contentType === "audio/wav" ? "input.wav" : "input.mp3";
-  await writeFile(join(directory, input), audio.bytes);
-  await ffmpeg(["-i", input, "-vn", "-af", "loudnorm=I=-18:TP=-2:LRA=7",
-    "-t", "90", "-ar", String(sampleRate), "-ac", "1", "-f", "s16le", "normalized.pcm"], directory, deadline);
-  return readFile(join(directory, "normalized.pcm"));
+async function prepareNarration(scenes: Scene[], language: Language, directory: string, deadline: number) {
+  const audio: (string | undefined)[] = [];
+  if (!speechConfigured()) return { audio, localNarration: false };
+
+  let localAvailable = language === "en";
+  for (const [index, scene] of scenes.entries()) {
+    if (Date.now() >= deadline) throw new InputError("The walkthrough reached its seven-minute time limit.");
+    try {
+      const speech = await narrationFor(scene);
+      if (!speech) throw new Error("Speech provider returned no audio.");
+      const input = speech.contentType === "audio/wav" ? "input.wav" : "input.mp3";
+      await writeFile(join(directory, input), speech.bytes);
+      audio[index] = await normalizeSpeech(["-i", input], "provider-" + index + ".pcm", directory, deadline);
+    } catch (error) {
+      console.warn("Walkthrough narration failed for chapter %d: %s", index + 1, error instanceof Error ? error.message.split("\n")[0] : "Unknown error");
+      if (localAvailable) {
+        // Build the whole cut with one voice if the configured provider cannot finish every chapter.
+        const local = await localEnglishSpeech(scenes, directory, deadline).catch(() => undefined);
+        if (local) return { audio: local, localNarration: true };
+        localAvailable = false;
+      }
+    }
+  }
+  return { audio, localNarration: false };
+}
+
+async function localEnglishSpeech(scenes: Scene[], directory: string, deadline: number) {
+  const files: string[] = [];
+  for (const [index, scene] of scenes.entries()) {
+    // Pass text through a file so captured page copy cannot become a filter argument.
+    const caption = scene.caption.replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, ", ");
+    await writeFile(join(directory, "speech.txt"), caption);
+    files.push(await normalizeSpeech(["-f", "lavfi", "-i", "flite=textfile=speech.txt:voice=slt"],
+      "local-" + index + ".pcm", directory, deadline));
+  }
+  return files;
+}
+
+async function normalizeSpeech(input: string[], output: string, directory: string, deadline: number) {
+  await ffmpeg([...input, "-vn", "-af", "loudnorm=I=-18:TP=-2:LRA=7",
+    "-t", "90", "-ar", String(sampleRate), "-ac", "1", "-f", "s16le", output], directory, deadline);
+  if (!(await stat(join(directory, output))).size) throw new Error("The speech track was empty after conversion.");
+  return output;
 }
 
 function embedImages(scene: Scene, images: Map<string, Buffer | undefined>): Scene {

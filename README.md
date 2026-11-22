@@ -52,6 +52,8 @@ Copy [.env.example](.env.example) to `.env` in the repository root, enter the va
 
 Gemini uses Charon for English, Kore for Hindi, and Sulafat for Telugu. If narration is unavailable, the player indicates which chapters rely on captions. For a compatible MP3 speech service, configure `TTS_BASE_URL`, `TTS_MODEL`, and optionally `TTS_API_KEY` and `TTS_VOICE`. A configured Gemini key takes precedence.
 
+When the configured speech provider fails during an English export, FFmpeg builds that entire cut with one local voice if its build includes the `flite` filter. The player identifies these exports.
+
 ## Storage and verification
 
 Completed reports, screenshots, and saved fix previews persist in `.despecto/`. Set `REPORT_DIR` to use a different directory. The server retains up to 20 reports and keeps recent video renders in memory. **Remove** in audit history deletes a saved audit after confirmation.
